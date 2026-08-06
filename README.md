@@ -18,3 +18,5 @@ View your app in AI Studio: https://ai.studio/apps/1a536d12-5030-4e4c-bca7-5ff1b
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+# BraveHearts
+crime lens project
