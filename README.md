@@ -31,9 +31,9 @@ Crime Justice is a web-based project designed to help users manage and analyze c
 3. Open `index.html` in your browser.
 
 ## Team
-Unnati Gandhi
-Akanksha Deshmukh
-Anushri Mahajan
+- Unnati Gandhi
+- Akanksha Deshmukh
+- Anushri Mahajan
 
 ## Future Scope
 - Emergency meeting notification from the higher authorities. 
