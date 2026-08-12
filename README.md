@@ -15,15 +15,11 @@ Crime Justice is a web-based project designed to help users manage and analyze c
 ## Technologies Used
 - HTML
 - CSS/ Tailwind CSS
-- JavaScript
-- Typescript/ react
-- Leaflet
-- OpenstreetMap
-- Vite
-- Plugin-React
+- JavaScript/ Typescript
+- Leaflet + OpenstreetMap
+- Vite + React
 - Recharts
-- jsPDF
-- Express
+- jsPDF + Express.js
 
 ## How to Run
 1. Download or clone the repository.
