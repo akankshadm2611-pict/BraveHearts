@@ -56,11 +56,25 @@ export interface EvidenceFile {
   url?: string;
 }
 
+export interface TimelineEntry {
+  id: string;
+  timestamp: string; // e.g. "10 Aug 2026, 09:30 AM"
+  title: string; // e.g. "Case Registered", "Crime Scene Visited"
+  description: string; // e.g. "Complaint received and case officially created."
+  performerName: string; // e.g. "Inspector Sharma"
+  performerRole?: string; // e.g. "Police Officer", "Host Inspector", "DSP"
+  statusTag?: 'Completed' | 'In Progress' | 'Pending';
+}
+
 export interface Case {
   id: string; // Unique Case ID e.g. CR-2026-8942
   crimeType: CrimeType;
   dateAssigned: string;
   caseName: string;
+  victimName: string; // Compulsory Victim Name
+  witnessName?: string; // Optional Witness Name
+  location: string; // Incident location / address e.g. "Downtown Central Financial Sector, Metro City"
+  coordinates?: [number, number]; // Lat, Lng e.g. [18.922, 72.8346]
   description: string;
   status: CaseStatus;
   assignedHostId: string; // DSP assigns Host
@@ -72,6 +86,7 @@ export interface Case {
   evidence: EvidenceFile[];
   createdAt: string;
   priority: 'Low' | 'Medium' | 'High' | 'Critical';
+  timeline?: TimelineEntry[];
 }
 
 export type SuspectStatus = 'Wanted' | 'Under Arrest' | 'Missing' | 'On Bail' | 'Sentenced' | 'Under Investigation';

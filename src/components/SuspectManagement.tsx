@@ -1,10 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { Suspect, SuspectStatus, UserRole } from '../types';
-import { ShieldAlert, Plus, X, Network, Search, UserCheck, AlertOctagon, MapPin, Tag, Upload, Image as ImageIcon, GitBranch, Trash2, User } from 'lucide-react';
+import { Suspect, SuspectStatus, UserRole, Case } from '../types';
+import { ShieldAlert, Plus, X, Search, UserCheck, AlertOctagon, MapPin, Tag, Upload, Image as ImageIcon, GitBranch, Trash2, User, FolderKanban, Share2 } from 'lucide-react';
 import { SuspectBinaryTreeModal } from './SuspectBinaryTreeModal';
+import { SuspectBinaryTreeNetworkModal } from './SuspectBinaryTreeNetworkModal';
 
 interface SuspectManagementProps {
   suspects: Suspect[];
+  cases?: Case[];
   onCreateSuspect: (newSuspect: Suspect) => void;
   onUpdateSuspects?: (updatedSuspects: Suspect[]) => void;
   userRole: UserRole;
@@ -14,6 +16,7 @@ interface SuspectManagementProps {
 
 export const SuspectManagement: React.FC<SuspectManagementProps> = ({
   suspects,
+  cases = [],
   onCreateSuspect,
   onUpdateSuspects,
   userRole,
@@ -22,6 +25,7 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
 }) => {
   const [selectedSuspect, setSelectedSuspect] = useState<Suspect | null>(null);
   const [activeBinaryTreeSuspect, setActiveBinaryTreeSuspect] = useState<Suspect | null>(null);
+  const [activeNetworkSuspect, setActiveNetworkSuspect] = useState<Suspect | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -192,15 +196,29 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
   const getStatusBadge = (st: SuspectStatus) => {
     switch (st) {
       case 'Wanted':
-        return 'bg-red-500/20 text-red-400 border-red-500/40';
+        return themeMode === 'bright'
+          ? 'bg-red-100 text-red-950 border-red-300 font-extrabold'
+          : 'bg-red-500/20 text-red-400 border-red-500/40';
       case 'Under Arrest':
-        return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+        return themeMode === 'bright'
+          ? 'bg-amber-100 text-amber-950 border-amber-300 font-extrabold'
+          : 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+      case 'Under Investigation':
+        return themeMode === 'bright'
+          ? 'bg-yellow-100 text-amber-950 border-yellow-400 font-extrabold shadow-xs'
+          : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
       case 'Missing':
-        return 'bg-purple-500/20 text-purple-400 border-purple-500/40';
+        return themeMode === 'bright'
+          ? 'bg-purple-100 text-purple-950 border-purple-300 font-extrabold'
+          : 'bg-purple-500/20 text-purple-400 border-purple-500/40';
       case 'On Bail':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/40';
+        return themeMode === 'bright'
+          ? 'bg-blue-100 text-blue-950 border-blue-300 font-extrabold'
+          : 'bg-blue-500/20 text-blue-400 border-blue-500/40';
       default:
-        return 'bg-slate-500/20 text-slate-300 border-slate-500/40';
+        return themeMode === 'bright'
+          ? 'bg-yellow-100 text-amber-950 border-yellow-400 font-extrabold shadow-xs'
+          : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
     }
   };
 
@@ -233,7 +251,8 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
             className="w-full md:w-auto px-4 sm:px-5 py-2.5 bg-gradient-to-r from-red-600 via-amber-600 to-yellow-500 hover:from-red-500 hover:to-yellow-400 text-slate-950 font-black rounded-xl text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-lg shadow-red-500/20 transition-all transform hover:-translate-y-0.5 cursor-pointer shrink-0"
           >
             <Plus className="w-4.5 h-4.5 stroke-[3] shrink-0" />
-            <span>Create New Suspect Profile</span>
+            <span className="hidden sm:inline">Create New Suspect Profile</span>
+            <span className="sm:hidden text-xs font-black">New Suspect Profile</span>
           </button>
         )}
       </div>
@@ -313,17 +332,47 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                   themeMode === 'bright' ? 'text-amber-800' : 'text-amber-300'
                 }`}>{suspect.crime}</p>
                 <p className="text-xs text-slate-400 font-medium">Age: {suspect.age} • {suspect.gender}</p>
+                <p className={`text-xs font-semibold flex items-center mt-1 line-clamp-1 ${
+                  themeMode === 'bright' ? 'text-red-700' : 'text-red-400'
+                }`}>
+                  <MapPin className="w-3 h-3 mr-1 shrink-0 text-red-500" />
+                  <span>{suspect.address}</span>
+                </p>
               </div>
 
-              {/* Card Action Controls: Binary Tree Button */}
-              <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+              {/* Card Action Controls: Binary Tree & Tree Network Buttons */}
+              <div className={`pt-2 border-t flex items-center gap-1.5 ${
+                themeMode === 'bright' ? 'border-slate-200' : 'border-slate-800'
+              }`}>
                 <button
                   type="button"
                   onClick={() => setActiveBinaryTreeSuspect(suspect)}
-                  className="w-full py-2 px-3 rounded-xl bg-yellow-500/10 hover:bg-yellow-500 text-yellow-400 hover:text-slate-950 border border-yellow-500/30 text-xs font-black flex items-center justify-center space-x-1.5 transition-all"
+                  className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-black flex items-center justify-center space-x-1 transition-all cursor-pointer ${
+                    themeMode === 'bright'
+                      ? 'bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300/80'
+                      : 'bg-yellow-500/10 hover:bg-yellow-500 text-yellow-400 hover:text-slate-950 border border-yellow-500/30'
+                  }`}
+                  title="View node list & connections"
                 >
-                  <GitBranch className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>Binary Tree ({suspect.connectedSuspects.length})</span>
+                  <GitBranch className={`w-3.5 h-3.5 stroke-[2.5] shrink-0 ${
+                    themeMode === 'bright' ? 'text-amber-900' : ''
+                  }`} />
+                  <span className="truncate">Binary Tree</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveNetworkSuspect(suspect)}
+                  className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-black flex items-center justify-center space-x-1 transition-all shadow-xs cursor-pointer ${
+                    themeMode === 'bright'
+                      ? 'bg-orange-100 hover:bg-orange-200 text-amber-950 border border-orange-300/80'
+                      : 'bg-gradient-to-r from-red-500/20 to-amber-500/20 hover:from-red-500 hover:to-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40'
+                  }`}
+                  title="Open Binary Tree Network visualizer"
+                >
+                  <Share2 className={`w-3.5 h-3.5 stroke-[2.5] shrink-0 ${
+                    themeMode === 'bright' ? 'text-amber-900' : 'text-amber-400 group-hover:text-slate-950'
+                  }`} />
+                  <span className="truncate">Tree Network</span>
                 </button>
               </div>
             </div>
@@ -333,34 +382,34 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
 
       {/* Suspect Details Modal */}
       {selectedSuspect && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-3 sm:p-5 pt-16 sm:pt-20 bg-black/85 backdrop-blur-md overflow-y-auto">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-2 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
           <div
-            className={`relative w-full max-w-3xl my-auto rounded-2xl border shadow-2xl overflow-hidden transition-all ${
+            className={`relative w-full max-w-3xl my-auto rounded-2xl border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col transition-all ${
               themeMode === 'bright'
-                ? 'bg-white text-slate-900 border-amber-400 shadow-amber-500/10'
+                ? 'bg-white text-slate-900 border-sky-300 shadow-sky-500/10'
                 : 'bg-slate-950 text-slate-100 border-yellow-500/40'
             }`}
           >
             {/* Modal Upper Bar */}
             <div className={`p-4 sm:p-6 border-b flex items-center justify-between transition-colors ${
               themeMode === 'bright'
-                ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 border-amber-500 text-slate-950 shadow-sm'
+                ? 'bg-gradient-to-r from-sky-100 via-blue-50 to-white border-sky-200 text-blue-950 shadow-sm'
                 : 'bg-slate-900 border-yellow-500/20 text-yellow-400'
             }`}>
               <div className="flex items-center space-x-3">
                 <span className={`font-mono font-bold text-xs px-2.5 py-1 rounded shadow-sm ${
-                  themeMode === 'bright' ? 'bg-slate-950 text-yellow-400' : 'bg-yellow-500 text-slate-950'
+                  themeMode === 'bright' ? 'bg-blue-600 text-white' : 'bg-yellow-500 text-slate-950'
                 }`}>
                   {selectedSuspect.id}
                 </span>
                 <h3 className={`text-lg sm:text-xl font-black ${
-                  themeMode === 'bright' ? 'text-slate-950' : 'text-yellow-400'
+                  themeMode === 'bright' ? 'text-blue-950' : 'text-yellow-400'
                 }`}>Suspect Criminal Profile</h3>
               </div>
               <button
                 onClick={() => setSelectedSuspect(null)}
                 className={`p-1.5 rounded-full transition-colors ${
-                  themeMode === 'bright' ? 'bg-black/10 hover:bg-black/20 text-slate-950' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                  themeMode === 'bright' ? 'bg-white hover:bg-slate-200 text-blue-950 border border-slate-300 shadow-xs' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
                 }`}
                 title="Close Profile Modal"
               >
@@ -373,7 +422,7 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                 {/* Photo */}
                 <div className={`w-full sm:w-48 h-56 rounded-xl overflow-hidden border-2 flex-shrink-0 flex items-center justify-center ${
                   themeMode === 'bright'
-                    ? 'bg-slate-100 border-amber-400 shadow-sm'
+                    ? 'bg-slate-100 border-blue-400 shadow-sm'
                     : 'bg-slate-900 border-yellow-500/30'
                 }`}>
                   {selectedSuspect.photoUrl ? (
@@ -413,7 +462,7 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
 
                     <div>
                       <span className={themeMode === 'bright' ? 'text-slate-600 font-bold' : 'text-slate-400'}>Primary Crime:</span>
-                      <p className={`font-extrabold ${themeMode === 'bright' ? 'text-amber-900' : 'text-amber-300'}`}>{selectedSuspect.crime}</p>
+                      <p className={`font-extrabold ${themeMode === 'bright' ? 'text-blue-900' : 'text-amber-300'}`}>{selectedSuspect.crime}</p>
                     </div>
 
                     <div className="col-span-2">
@@ -425,10 +474,10 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                   {selectedSuspect.notes && (
                     <div className={`p-3 rounded-xl border text-xs space-y-1 ${
                       themeMode === 'bright'
-                        ? 'bg-amber-100/70 border-2 border-amber-300 text-slate-900 shadow-sm'
+                        ? 'bg-sky-50/80 border-2 border-sky-200 text-slate-900 shadow-sm'
                         : 'bg-slate-900/40 border border-slate-800 text-slate-300'
                     }`}>
-                      <span className={themeMode === 'bright' ? 'text-amber-950 font-black' : 'text-amber-400 font-bold'}>Investigative Notes:</span>
+                      <span className={themeMode === 'bright' ? 'text-blue-950 font-black' : 'text-amber-400 font-bold'}>Investigative Notes:</span>
                       <p className={themeMode === 'bright' ? 'text-slate-900 font-medium' : 'text-slate-300'}>{selectedSuspect.notes}</p>
                     </div>
                   )}
@@ -440,7 +489,11 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                         setActiveBinaryTreeSuspect(selectedSuspect);
                         setSelectedSuspect(null);
                       }}
-                      className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center space-x-2 shadow-lg hover:scale-105 transition-transform"
+                      className={`w-full py-2.5 px-4 font-black rounded-xl text-xs flex items-center justify-center space-x-2 shadow-lg hover:scale-[1.02] transition-all cursor-pointer ${
+                        themeMode === 'bright'
+                          ? 'bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white'
+                          : 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 hover:scale-105'
+                      }`}
                     >
                       <GitBranch className="w-4 h-4" />
                       <span>Open Binary Tree Node Visualizer</span>
@@ -448,6 +501,47 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* LINKED CASES & INCIDENT LOCATIONS */}
+              {(() => {
+                const linkedCases = cases.filter((c) => selectedSuspect.linkedCaseIds.includes(c.id));
+                if (linkedCases.length === 0) return null;
+                return (
+                  <div className={`p-4 rounded-xl border space-y-3 ${
+                    themeMode === 'bright'
+                      ? 'bg-slate-50 border-2 border-slate-300 text-slate-900 shadow-sm'
+                      : 'bg-slate-900 border border-blue-900/50 text-slate-100'
+                  }`}>
+                    <h4 className={`text-sm font-black flex items-center ${
+                      themeMode === 'bright' ? 'text-blue-950' : 'text-yellow-400'
+                    }`}>
+                      <FolderKanban className="w-4 h-4 mr-2 text-blue-500" /> Linked Cases & Crime Incident Locations ({linkedCases.length})
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {linkedCases.map((c) => (
+                        <div
+                          key={c.id}
+                          className={`p-3 rounded-lg border space-y-1 ${
+                            themeMode === 'bright'
+                              ? 'bg-white border-slate-200 text-slate-900'
+                              : 'bg-slate-950 border-slate-800 text-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-extrabold text-xs truncate">{c.caseName}</span>
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 shrink-0">{c.id}</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-medium">{c.crimeType} • Status: <span className="font-bold text-amber-400">{c.status}</span></p>
+                          <p className="text-xs font-bold text-red-500 dark:text-red-400 flex items-start pt-0.5">
+                            <MapPin className="w-3.5 h-3.5 mr-1 shrink-0 mt-0.5 text-red-500" />
+                            <span>{c.location}</span>
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* CONNECTING LINKS (NODE GRAPH) FOR SUSPECT INVESTIGATION */}
               <div className={`p-4 rounded-xl border space-y-3 ${
@@ -458,9 +552,9 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className={`text-sm font-black flex items-center ${
-                      themeMode === 'bright' ? 'text-amber-950' : 'text-yellow-400'
+                      themeMode === 'bright' ? 'text-blue-950' : 'text-yellow-400'
                     }`}>
-                      <Network className="w-4 h-4 mr-2 text-amber-500" /> Connected Links & Syndicate Network Nodes
+                      <GitBranch className={`w-4 h-4 mr-2 ${themeMode === 'bright' ? 'text-blue-600' : 'text-amber-500'}`} /> Connected Links & Syndicate Network Nodes
                     </h4>
                     <p className={`text-xs mt-0.5 ${
                       themeMode === 'bright' ? 'text-slate-600 font-medium' : 'text-slate-400'
@@ -473,7 +567,11 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowDetailAddNode(!showDetailAddNode)}
-                      className="px-2.5 py-1 bg-yellow-500/20 hover:bg-yellow-500 text-amber-900 hover:text-slate-950 font-bold text-xs rounded-lg border border-yellow-500/40 flex items-center space-x-1"
+                      className={`px-2.5 py-1 font-bold text-xs rounded-lg border flex items-center space-x-1 ${
+                        themeMode === 'bright'
+                          ? 'bg-blue-100 hover:bg-blue-200 text-blue-950 border-blue-300'
+                          : 'bg-yellow-500/20 hover:bg-yellow-500 text-amber-900 hover:text-slate-950 border-yellow-500/40'
+                      }`}
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>{showDetailAddNode ? 'Cancel' : 'Add Node'}</span>
@@ -485,7 +583,7 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                 {showDetailAddNode && canCreate && (
                   <form onSubmit={handleAddDetailNode} className={`p-3 rounded-xl border space-y-2 text-xs ${
                     themeMode === 'bright'
-                      ? 'bg-amber-100/80 border-2 border-amber-300 text-slate-900'
+                      ? 'bg-sky-50/80 border-2 border-sky-200 text-slate-900'
                       : 'bg-slate-950 border border-slate-800 text-slate-100'
                   }`}>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -532,7 +630,11 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                     <div className="flex justify-end pt-1">
                       <button
                         type="submit"
-                        className="px-4 py-1.5 bg-yellow-500 text-slate-950 font-bold rounded-lg shadow-sm"
+                        className={`px-4 py-1.5 font-bold rounded-lg shadow-sm ${
+                          themeMode === 'bright'
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                            : 'bg-yellow-500 text-slate-950'
+                        }`}
                       >
                         Link Node Connection
                       </button>
@@ -547,24 +649,28 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                         key={idx}
                         className={`p-3 rounded-lg border flex items-center justify-between ${
                           themeMode === 'bright'
-                            ? 'bg-white border-2 border-amber-200 text-slate-900 shadow-sm'
+                            ? 'bg-sky-50/80 border-2 border-sky-200 text-slate-900 shadow-sm'
                             : 'bg-slate-950 border border-slate-800 text-slate-200'
                         }`}
                       >
                         <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 rounded-full bg-yellow-500/20 text-amber-950 font-bold text-xs flex items-center justify-center border border-yellow-500/40">
+                          <div className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center border ${
+                            themeMode === 'bright'
+                              ? 'bg-blue-100 text-blue-950 border-blue-300'
+                              : 'bg-yellow-500/20 text-amber-950 border-yellow-500/40'
+                          }`}>
                             Node
                           </div>
                           <div>
                             <p className={`text-xs font-bold ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-200'}`}>{link.targetSuspectName}</p>
-                            <p className={`text-[10px] ${themeMode === 'bright' ? 'text-amber-900 font-bold' : 'text-amber-300'}`}>Relationship: {link.relationship}</p>
+                            <p className={`text-[10px] ${themeMode === 'bright' ? 'text-blue-900 font-bold' : 'text-amber-300'}`}>Relationship: {link.relationship}</p>
                           </div>
                         </div>
 
                         <div className="flex items-center space-x-2">
                           <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
                             themeMode === 'bright'
-                              ? 'bg-amber-100 text-amber-950 font-bold border-amber-300'
+                              ? 'bg-blue-100 text-blue-950 font-bold border-blue-300'
                               : 'bg-slate-900 text-slate-400 border-slate-700'
                           }`}>
                             Case: {link.caseId}
@@ -597,24 +703,24 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
           <div
             className={`relative w-full max-w-xl my-auto rounded-2xl border shadow-2xl overflow-hidden transition-all ${
               themeMode === 'bright'
-                ? 'bg-white text-slate-900 border-amber-400'
+                ? 'bg-white text-slate-900 border-sky-300 shadow-sky-500/10'
                 : 'bg-slate-950 text-slate-100 border-yellow-500/30'
             }`}
           >
             <div className={`p-4 sm:p-5 border-b flex items-center justify-between ${
               themeMode === 'bright'
-                ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 border-amber-500 text-slate-950 shadow-sm'
+                ? 'bg-gradient-to-r from-sky-100 via-blue-50 to-white border-sky-200 text-blue-950 shadow-sm'
                 : 'bg-slate-900 border-yellow-500/20 text-yellow-400'
             }`}>
               <h3 className={`text-lg font-bold flex items-center ${
-                themeMode === 'bright' ? 'text-slate-950 font-black' : 'text-yellow-400'
+                themeMode === 'bright' ? 'text-blue-950 font-black' : 'text-yellow-400'
               }`}>
                 <AlertOctagon className="w-5 h-5 mr-2 text-red-600" /> Create New Suspect Profile
               </h3>
               <button
                 onClick={() => setShowCreateModal(false)}
                 className={`p-1 rounded-full transition-colors ${
-                  themeMode === 'bright' ? 'bg-black/10 hover:bg-black/20 text-slate-950' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                  themeMode === 'bright' ? 'bg-white hover:bg-slate-200 text-blue-950 border border-slate-300' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
                 }`}
               >
                 <X className="w-5 h-5 stroke-[2.5]" />
@@ -625,21 +731,21 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
               {/* PHOTO UPLOAD OPTION FOR NEW SUSPECT */}
               <div className={`p-4 rounded-xl border space-y-3 ${
                 themeMode === 'bright'
-                  ? 'bg-amber-50/80 border-2 border-amber-200 text-slate-900 shadow-sm'
+                  ? 'bg-sky-50/80 border-2 border-sky-200 text-slate-900 shadow-sm'
                   : 'bg-slate-900 border border-slate-800 text-slate-100'
               }`}>
                 <div className="flex items-center justify-between">
                   <label className={`text-xs font-black flex items-center ${
-                    themeMode === 'bright' ? 'text-amber-950' : 'text-yellow-400'
+                    themeMode === 'bright' ? 'text-blue-950' : 'text-yellow-400'
                   }`}>
-                    <ImageIcon className="w-4 h-4 mr-1.5 text-amber-500" /> Upload Suspect Photograph (Optional)
+                    <ImageIcon className={`w-4 h-4 mr-1.5 ${themeMode === 'bright' ? 'text-blue-600' : 'text-amber-500'}`} /> Upload Suspect Photograph (Optional)
                   </label>
                   <div className="flex text-[10px] bg-slate-950 p-1 rounded-lg border border-slate-800">
                     <button
                       type="button"
                       onClick={() => setUploadMethod('file')}
                       className={`px-2 py-0.5 rounded font-bold ${
-                        uploadMethod === 'file' ? 'bg-yellow-500 text-slate-950' : 'text-slate-400'
+                        uploadMethod === 'file' ? (themeMode === 'bright' ? 'bg-blue-600 text-white' : 'bg-yellow-500 text-slate-950') : 'text-slate-400'
                       }`}
                     >
                       File Upload
@@ -648,7 +754,7 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                       type="button"
                       onClick={() => setUploadMethod('url')}
                       className={`px-2 py-0.5 rounded font-bold ${
-                        uploadMethod === 'url' ? 'bg-yellow-500 text-slate-950' : 'text-slate-400'
+                        uploadMethod === 'url' ? (themeMode === 'bright' ? 'bg-blue-600 text-white' : 'bg-yellow-500 text-slate-950') : 'text-slate-400'
                       }`}
                     >
                       URL Link
@@ -663,7 +769,9 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                 {uploadMethod === 'file' ? (
                   <div>
                     {photoPreview ? (
-                      <div className="relative w-32 h-36 mx-auto rounded-xl overflow-hidden border-2 border-yellow-400 shadow-md">
+                      <div className={`relative w-32 h-36 mx-auto rounded-xl overflow-hidden border-2 shadow-md ${
+                        themeMode === 'bright' ? 'border-blue-400' : 'border-yellow-400'
+                      }`}>
                         <img src={photoPreview} alt="Suspect preview" className="w-full h-full object-cover" />
                         <button
                           type="button"
@@ -679,11 +787,11 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                         onClick={() => fileInputRef.current?.click()}
                         className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
                           themeMode === 'bright'
-                            ? 'border-amber-400 bg-white hover:bg-amber-50 text-slate-900'
+                            ? 'border-sky-300 bg-white hover:bg-sky-50 text-slate-900'
                             : 'border-slate-700 hover:border-yellow-500 bg-slate-950/50 hover:bg-slate-950 text-slate-200'
                         }`}
                       >
-                        <Upload className="w-8 h-8 text-amber-500 mx-auto mb-1.5" />
+                        <Upload className={`w-8 h-8 mx-auto mb-1.5 ${themeMode === 'bright' ? 'text-blue-600' : 'text-amber-500'}`} />
                         <p className={`text-xs font-bold ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-200'}`}>Click to Browse Suspect Image File</p>
                         <p className={`text-[10px] mt-0.5 ${themeMode === 'bright' ? 'text-slate-600' : 'text-slate-500'}`}>Supports PNG, JPG, JPEG, WEBP</p>
                         <input
@@ -847,7 +955,11 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold rounded-lg text-xs shadow-md"
+                  className={`px-5 py-2 font-bold rounded-lg text-xs shadow-md ${
+                    themeMode === 'bright'
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-yellow-500 hover:bg-yellow-400 text-slate-950'
+                  }`}
                 >
                   Create Suspect History
                 </button>
@@ -869,6 +981,21 @@ export const SuspectManagement: React.FC<SuspectManagementProps> = ({
           onSelectSuspectProfile={(s) => {
             setSelectedSuspect(s);
             setActiveBinaryTreeSuspect(null);
+          }}
+        />
+      )}
+
+      {/* Binary Tree Network Diagram Modal */}
+      {activeNetworkSuspect && (
+        <SuspectBinaryTreeNetworkModal
+          rootSuspect={activeNetworkSuspect}
+          suspects={suspects}
+          cases={cases}
+          themeMode={themeMode}
+          onClose={() => setActiveNetworkSuspect(null)}
+          onSelectSuspectProfile={(s) => {
+            setSelectedSuspect(s);
+            setActiveNetworkSuspect(null);
           }}
         />
       )}

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, ShieldCheck, Upload, UserCheck, AlertCircle, FileText, CheckCircle2, Trash2, Paperclip } from 'lucide-react';
+import { X, ShieldCheck, Upload, UserCheck, AlertCircle, FileText, CheckCircle2, Trash2, Paperclip, Eye, EyeOff } from 'lucide-react';
 import { UserRole, RegistrationRequest } from '../types';
 import { LogoHeader } from './LogoHeader';
 import { PasswordStrengthBar, checkPasswordRequirements } from './PasswordStrengthBar';
@@ -51,8 +51,6 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
   onSubmitRegistration,
   themeMode = 'dark',
 }) => {
-  if (!isOpen) return null;
-
   // Active step in modal (1 to 6)
   const [activeStep, setActiveStep] = useState<number>(1);
 
@@ -80,6 +78,8 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // 4. Document Upload
   const [idProofName, setIdProofName] = useState('');
@@ -91,6 +91,18 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
 
   const idProofInputRef = useRef<HTMLInputElement>(null);
   const serviceIdInputRef = useRef<HTMLInputElement>(null);
+
+  // 5. Captcha
+  const [captchaVerified, setCaptchaVerified] = useState(false);
+
+  // 6. Terms
+  const [agreedTerms, setAgreedTerms] = useState(false);
+
+  // Error message
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  if (!isOpen) return null;
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -149,16 +161,6 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
       serviceIdInputRef.current.value = '';
     }
   };
-
-  // 5. Captcha
-  const [captchaVerified, setCaptchaVerified] = useState(false);
-
-  // 6. Terms
-  const [agreedTerms, setAgreedTerms] = useState(false);
-
-  // Error message
-  const [errorMessage, setErrorMessage] = useState('');
-  const [isSuccess, setIsSuccess] = useState(false);
 
   const reqs = checkPasswordRequirements(password);
   const isPasswordValid = reqs.hasMinLength && reqs.hasUppercase && reqs.hasNumber && reqs.hasSpecialChar;
@@ -900,36 +902,66 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div>
                       <label className={`block text-sm font-extrabold mb-1.5 ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-200'}`}>Set Password *</label>
-                      <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••••••"
-                        className={`w-full px-4 py-3 rounded-xl text-base font-bold transition-all border focus:outline-none ${
-                          themeMode === 'bright'
-                            ? 'bg-white text-slate-900 border border-slate-300 focus:border-blue-500'
-                            : 'bg-slate-900/90 text-slate-100 border-blue-500'
-                        }`}
-                        required
-                      />
+                      <div className="relative">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••••••"
+                          className={`w-full px-4 py-3 pr-11 rounded-xl text-base font-bold transition-all border focus:outline-none ${
+                            themeMode === 'bright'
+                              ? 'bg-white text-slate-900 border border-slate-300 focus:border-blue-500'
+                              : 'bg-slate-900/90 text-slate-100 border-blue-500'
+                          }`}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors focus:outline-none ${
+                            themeMode === 'bright'
+                              ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                          }`}
+                          title={showPassword ? 'Hide password' : 'Show password'}
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
                     </div>
 
                     <div>
                       <label className={`block text-sm font-extrabold mb-1.5 ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-200'}`}>Confirm Password *</label>
-                      <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••••••"
-                        className={`w-full px-4 py-3 rounded-xl text-base font-bold transition-all border focus:outline-none ${
-                          themeMode === 'bright'
-                            ? 'bg-white text-slate-900 border border-slate-300 focus:border-blue-500'
-                            : 'bg-slate-900/90 text-slate-100 border-blue-500'
-                        } ${
-                          confirmPassword && !passwordsMatch ? 'border-red-500' : ''
-                        }`}
-                        required
-                      />
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="••••••••••••"
+                          className={`w-full px-4 py-3 pr-11 rounded-xl text-base font-bold transition-all border focus:outline-none ${
+                            themeMode === 'bright'
+                              ? 'bg-white text-slate-900 border border-slate-300 focus:border-blue-500'
+                              : 'bg-slate-900/90 text-slate-100 border-blue-500'
+                          } ${
+                            confirmPassword && !passwordsMatch ? 'border-red-500' : ''
+                          }`}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((prev) => !prev)}
+                          className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors focus:outline-none ${
+                            themeMode === 'bright'
+                              ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                          }`}
+                          title={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                          aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
                       {confirmPassword && !passwordsMatch && (
                         <p className="text-xs text-red-600 font-bold mt-1.5">Passwords do not match!</p>
                       )}

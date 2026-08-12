@@ -42,9 +42,9 @@ export const PendingApprovalModal: React.FC<PendingApprovalModalProps> = ({
   if (!isOpen || !request) return null;
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-3 sm:p-5 pt-16 sm:pt-20 bg-black/80 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-2 sm:p-5 bg-black/80 backdrop-blur-md overflow-y-auto">
       <div
-        className={`relative w-full max-w-3xl my-auto rounded-2xl border shadow-2xl overflow-hidden transition-all ${
+        className={`relative w-full max-w-3xl my-auto rounded-2xl border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col transition-all ${
           themeMode === 'bright'
             ? 'bg-white text-slate-900 border-slate-300'
             : 'bg-slate-950 text-slate-100 border-yellow-500/30'
@@ -316,7 +316,7 @@ export const PendingApprovalModal: React.FC<PendingApprovalModalProps> = ({
         </div>
 
         {/* Verification Action Buttons: Approve / Reject / Keep Pending */}
-        <div className={`p-5 border-t flex flex-wrap items-center justify-between gap-3 ${
+        <div className={`p-3.5 sm:p-5 border-t flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 ${
           themeMode === 'bright'
             ? 'bg-slate-100 border-slate-300'
             : 'bg-slate-900 border-slate-800'
@@ -324,25 +324,25 @@ export const PendingApprovalModal: React.FC<PendingApprovalModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center transition-colors ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center transition-colors ${
               themeMode === 'bright'
                 ? 'bg-slate-200 text-slate-800 hover:bg-slate-300 border border-slate-300'
                 : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
             }`}
           >
-            <Clock className="w-3.5 h-3.5 mr-1.5" /> Keep Pending
+            <Clock className="w-3.5 h-3.5 mr-1.5 shrink-0" /> Keep Pending
           </button>
 
-          <div className="flex space-x-2">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
             <button
               type="button"
               onClick={() => {
                 onReject(request.id);
                 onClose();
               }}
-              className="px-4 py-2.5 bg-red-600/20 hover:bg-red-600/30 text-red-700 border border-red-500/40 rounded-xl text-xs font-bold flex items-center transition-colors"
+              className="px-3 sm:px-4 py-2.5 bg-red-600/20 hover:bg-red-600/30 text-red-700 dark:text-red-400 border border-red-500/40 rounded-xl text-xs font-bold flex items-center justify-center transition-colors"
             >
-              <XCircle className="w-4 h-4 mr-1.5" /> Reject Request
+              <XCircle className="w-4 h-4 mr-1.5 shrink-0" /> Reject Request
             </button>
 
             <button
@@ -351,9 +351,9 @@ export const PendingApprovalModal: React.FC<PendingApprovalModalProps> = ({
                 onApprove(request.id);
                 onClose();
               }}
-              className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold rounded-xl text-xs flex items-center shadow-lg shadow-emerald-500/20 transition-all transform hover:-translate-y-0.5"
+              className="px-4 sm:px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold rounded-xl text-xs flex items-center justify-center shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
             >
-              <CheckCircle className="w-4 h-4 mr-1.5 stroke-[3]" /> Approve Registration
+              <CheckCircle className="w-4 h-4 mr-1.5 stroke-[3] shrink-0" /> Approve Registration
             </button>
           </div>
         </div>

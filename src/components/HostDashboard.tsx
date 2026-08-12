@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
-import { Case, User, CrimeDistributionData, MonthlyCrimeData } from '../types';
+import { Case, User, CrimeDistributionData, MonthlyCrimeData, Suspect } from '../types';
 import { DashboardCharts } from './DashboardCharts';
 import { CrimeMap } from './CrimeMap';
-import { Shield, UserPlus, ShieldAlert, FolderKanban, Users, Eye, Plus, CheckCircle2, AlertCircle, Trash2, UserX, PlusCircle, UserMinus } from 'lucide-react';
+import { CaseHeatmap } from './CaseHeatmap';
+import { CaseSuspectModal } from './CaseSuspectModal';
+import { Shield, UserPlus, ShieldAlert, FolderKanban, Users, Eye, Plus, CheckCircle2, AlertCircle, Trash2, UserX, PlusCircle, UserMinus, Search, MapPin } from 'lucide-react';
 
 interface HostDashboardProps {
   currentUser: User;
   cases: Case[];
+  suspects?: Suspect[];
   officersList: User[];
   advocatesList: User[];
   onAddMemberToCase: (caseId: string, officerIds: string[], advocateIds: string[]) => void;
   onSelectCase: (c: Case) => void;
   onOpenSuspectManagement: () => void;
+  onManageCaseSuspects?: (caseId: string, suspectIds: string[]) => void;
+  onCreateSuspect?: (newSuspect: Suspect) => void;
+  onUpdateSuspect?: (updatedSuspect: Suspect) => void;
   distributionData: CrimeDistributionData[];
   monthlyData: MonthlyCrimeData[];
   themeMode?: 'dark' | 'bright';
@@ -20,15 +26,23 @@ interface HostDashboardProps {
 export const HostDashboard: React.FC<HostDashboardProps> = ({
   currentUser,
   cases,
+  suspects = [],
   officersList,
   advocatesList,
   onSelectCase,
   onOpenSuspectManagement,
   onAddMemberToCase,
+  onManageCaseSuspects,
+  onCreateSuspect,
+  onUpdateSuspect,
   distributionData,
   monthlyData,
   themeMode = 'dark',
 }) => {
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suspectModalCase, setSuspectModalCase] = useState<Case | null>(null);
+
   // Cases assigned to this Host by DSP
   const myAssignedCases = cases.filter(
     (c) =>
@@ -37,6 +51,16 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
         c.assignedHostName !== 'Unassigned' &&
         c.assignedHostName.toLowerCase().includes(currentUser.fullName.toLowerCase()))
   );
+
+  const filteredAssignedCases = myAssignedCases.filter((c) => {
+    const matchesStatus = statusFilter === 'ALL' || c.status === statusFilter;
+    const matchesSearch =
+      c.caseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.crimeType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
 
   const [assigningCase, setAssigningCase] = useState<Case | null>(null);
   const [selectedOfficerIds, setSelectedOfficerIds] = useState<string[]>([]);
@@ -102,8 +126,15 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
         </div>
       </div>
 
-      {/* Interactive Crime Hotspot Map */}
-      <CrimeMap themeMode={themeMode} />
+      {/* Interactive Crime Hotspot Map & Case Registration Heatmap */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch my-6">
+        <div className="flex flex-col min-w-0 h-full">
+          <CrimeMap cases={cases} suspects={suspects} onSelectCase={onSelectCase} themeMode={themeMode} />
+        </div>
+        <div className="flex flex-col min-w-0 h-full">
+          <CaseHeatmap cases={cases} themeMode={themeMode} />
+        </div>
+      </div>
 
       {/* Analytics Charts */}
       <DashboardCharts
@@ -114,10 +145,49 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
 
       {/* Cases Assigned to Host by DSP */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <h2 className={`text-lg sm:text-xl font-bold flex items-center ${themeMode === 'bright' ? 'text-amber-800' : 'text-yellow-400'}`}>
-            <FolderKanban className="w-5 h-5 mr-2" /> Cases Assigned to Host by DSP ({myAssignedCases.length})
+            <FolderKanban className="w-5 h-5 mr-2 shrink-0" /> Cases Assigned to Host by DSP ({filteredAssignedCases.length})
           </h2>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Completion Status Filter Pills */}
+            <div className={`flex items-center space-x-1 p-1 rounded-xl text-xs sm:text-sm border overflow-x-auto max-w-full ${
+              themeMode === 'bright' ? 'bg-slate-200 border-slate-400' : 'bg-slate-900 border-blue-900/50'
+            }`}>
+              {['ALL', 'Active', 'Under Investigation', 'Solved', 'Pending'].map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                    statusFilter === st
+                      ? 'bg-yellow-500 text-slate-950 shadow-md font-extrabold'
+                      : themeMode === 'bright'
+                      ? 'text-slate-800 hover:bg-slate-300'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+
+            {/* Search Bar beside the Filter */}
+            <div className="relative min-w-[200px] sm:min-w-[240px] flex-1 sm:flex-initial">
+              <Search className={`w-4 h-4 absolute left-3 top-2.5 ${themeMode === 'bright' ? 'text-slate-500' : 'text-slate-400'}`} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search case name, ID, or crime..."
+                className={`w-full pl-9 pr-3 py-1.5 rounded-xl border text-xs sm:text-sm font-medium transition-all focus:outline-none ${
+                  themeMode === 'bright'
+                    ? 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-amber-600 focus:ring-1 focus:ring-amber-600'
+                    : 'bg-slate-900 border-blue-900/50 text-white placeholder:text-slate-500 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500'
+                }`}
+              />
+            </div>
+          </div>
         </div>
 
         {myAssignedCases.length === 0 ? (
@@ -132,28 +202,36 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
               You currently have no cases allotted to your Host Inspector account. Once a DSP Superintendent assigns active investigation cases to you, they will be listed here automatically.
             </p>
           </div>
+        ) : filteredAssignedCases.length === 0 ? (
+          <div className={`p-8 rounded-2xl border border-dashed text-center space-y-2 my-4 ${
+            themeMode === 'bright' ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-slate-900/40 border-slate-800 text-slate-400'
+          }`}>
+            <Search className="w-8 h-8 text-yellow-500 mx-auto" />
+            <h4 className="text-sm font-bold">No Matching Cases Found</h4>
+            <p className="text-xs text-slate-500">Try adjusting your completion status filter or search query.</p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {myAssignedCases.map((c) => (
+            {filteredAssignedCases.map((c) => (
             <div
               key={c.id}
               className={`p-5 rounded-2xl border transition-all ${
                 themeMode === 'bright'
-                  ? 'bg-white border-2 border-slate-300 shadow-md text-slate-900'
+                  ? 'bg-gradient-to-r from-sky-100/80 via-blue-50/50 to-white border-2 border-sky-200 shadow-md text-slate-900'
                   : 'bg-slate-900/80 border-blue-900/50 text-slate-100'
               }`}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center space-x-2 mb-1.5">
-                    <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded border ${
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                    <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded border shrink-0 ${
                       themeMode === 'bright'
-                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        ? 'bg-blue-100 text-blue-950 border-blue-300'
                         : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30'
                     }`}>
                       {c.id}
                     </span>
-                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${
+                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded shrink-0 ${
                       themeMode === 'bright'
                         ? 'bg-slate-200 text-slate-800 border border-slate-300'
                         : 'text-slate-300 bg-slate-800'
@@ -163,21 +241,31 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                   </div>
                   <h3
                     onClick={() => onSelectCase(c)}
-                    className={`text-base sm:text-lg font-extrabold hover:text-yellow-500 cursor-pointer transition-colors ${
+                    className={`text-base sm:text-lg font-extrabold hover:text-yellow-500 cursor-pointer transition-colors leading-snug ${
                       themeMode === 'bright' ? 'text-slate-900' : 'text-slate-100'
                     }`}
                   >
                     {c.caseName}
                   </h3>
+                  <div className={`flex items-center text-xs font-semibold mt-1 ${themeMode === 'bright' ? 'text-red-700' : 'text-red-400'}`}>
+                    <MapPin className="w-3.5 h-3.5 mr-1 shrink-0 text-red-500" />
+                    <span>{c.location}</span>
+                  </div>
                 </div>
 
                 <span
-                  className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                  className={`text-xs font-bold px-3 py-1 rounded-full border shrink-0 ${
                     c.status === 'Solved'
-                      ? 'bg-emerald-500/20 text-emerald-600 border-emerald-500/50'
+                      ? themeMode === 'bright'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
                       : c.status === 'Active'
-                      ? 'bg-red-500/20 text-red-600 border-red-500/50'
-                      : 'bg-amber-500/20 text-amber-700 border-amber-500/50'
+                      ? themeMode === 'bright'
+                        ? 'bg-red-100 text-red-800 border-red-300'
+                        : 'bg-red-500/20 text-red-400 border-red-500/50'
+                      : themeMode === 'bright'
+                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                      : 'bg-amber-500/20 text-amber-400 border-amber-500/50'
                   }`}
                 >
                   {c.status}
@@ -210,17 +298,19 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                         return (
                           <span
                             key={offId}
-                            className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/40 text-xs font-bold"
+                            className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/40 text-xs font-bold max-w-full min-w-0"
                           >
-                            <span>{name}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => handleRemoveOfficerDirectly(c, offId, e)}
-                              className="p-0.5 hover:bg-red-500/30 text-red-400 rounded-full transition-colors"
-                              title="Delete / Remove Police Officer from case"
-                            >
-                              <UserX className="w-3.5 h-3.5" />
-                            </button>
+                            <span className="truncate">{name}</span>
+                            {c.status !== 'Solved' && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleRemoveOfficerDirectly(c, offId, e)}
+                                className="p-0.5 hover:bg-red-500/30 text-red-400 rounded-full transition-colors shrink-0 cursor-pointer"
+                                title="Delete / Remove Police Officer from case"
+                              >
+                                <UserX className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </span>
                         );
                       })}
@@ -246,17 +336,19 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                         return (
                           <span
                             key={advId}
-                            className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-bold"
+                            className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-bold max-w-full min-w-0"
                           >
-                            <span>{name}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => handleRemoveAdvocateDirectly(c, advId, e)}
-                              className="p-0.5 hover:bg-red-500/30 text-red-400 rounded-full transition-colors"
-                              title="Delete / Remove Advocate from case"
-                            >
-                              <UserX className="w-3.5 h-3.5" />
-                            </button>
+                            <span className="truncate">{name}</span>
+                            {c.status !== 'Solved' && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleRemoveAdvocateDirectly(c, advId, e)}
+                                className="p-0.5 hover:bg-red-500/30 text-red-400 rounded-full transition-colors shrink-0 cursor-pointer"
+                                title="Delete / Remove Advocate from case"
+                              >
+                                <UserX className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </span>
                         );
                       })}
@@ -267,31 +359,53 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
                 </div>
               </div>
 
-              <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-3 border-t ${
+              <div className={`flex flex-wrap items-center justify-between gap-2 pt-3 border-t ${
                 themeMode === 'bright' ? 'border-slate-300' : 'border-slate-800/80'
               }`}>
+                {c.status !== 'Solved' ? (
+                  <button
+                    type="button"
+                    onClick={() => openAssignModal(c)}
+                    title="Manage / Assign Team"
+                    className={`px-2.5 py-1.5 font-bold rounded-xl text-xs flex items-center justify-center space-x-1 transition-all cursor-pointer min-w-0 flex-1 ${
+                      themeMode === 'bright'
+                        ? 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-sm'
+                        : 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/40'
+                    }`}
+                  >
+                    <UserPlus className="w-3.5 h-3.5 shrink-0 text-yellow-500 dark:text-yellow-400" />
+                    <span className="truncate hidden xs:inline">Assign Team</span>
+                  </button>
+                ) : (
+                  <span className="px-2.5 py-1.5 font-bold rounded-xl text-xs flex items-center justify-center space-x-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 min-w-0 flex-1">
+                    <span className="hidden xs:inline">🔒 Case Solved</span>
+                    <span className="xs:hidden">🔒 Solved</span>
+                  </span>
+                )}
+
                 <button
-                  onClick={() => openAssignModal(c)}
-                  className={`px-3.5 py-2 font-bold rounded-xl text-xs sm:text-sm flex items-center justify-center space-x-1.5 transition-all shrink-0 ${
-                    themeMode === 'bright'
-                      ? 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-sm'
-                      : 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/40'
-                  }`}
+                  type="button"
+                  onClick={() => setSuspectModalCase(c)}
+                  title="Manage Suspects"
+                  className="px-2.5 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1 transition-all cursor-pointer shadow-xs min-w-0"
                 >
-                  <UserPlus className="w-4 h-4 shrink-0" />
-                  <span>Manage / Assign Team</span>
+                  <UserX className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate hidden sm:inline">Manage Suspects</span>
+                  <span className="truncate sm:hidden hidden xs:inline">Suspects</span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => onSelectCase(c)}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center space-x-1 transition-all shrink-0 ${
+                  title="View Details"
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer min-w-0 shrink-0 ${
                     themeMode === 'bright'
                       ? 'bg-slate-200 hover:bg-slate-300 text-slate-900 border border-slate-400'
                       : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
                   }`}
                 >
-                  <Eye className="w-4 h-4 shrink-0" />
-                  <span>View Details</span>
+                  <Eye className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate hidden xs:inline">Details</span>
                 </button>
               </div>
             </div>
@@ -589,6 +703,20 @@ export const HostDashboard: React.FC<HostDashboardProps> = ({
             </div>
           </div>
         </div>
+      )}
+      {/* Host Case Suspect Modal */}
+      {suspectModalCase && (
+        <CaseSuspectModal
+          c={suspectModalCase}
+          isOpen={!!suspectModalCase}
+          onClose={() => setSuspectModalCase(null)}
+          suspects={suspects}
+          currentUser={currentUser}
+          onManageCaseSuspects={onManageCaseSuspects || (() => {})}
+          onCreateSuspect={onCreateSuspect || (() => {})}
+          onUpdateSuspect={onUpdateSuspect || (() => {})}
+          themeMode={themeMode}
+        />
       )}
     </div>
   );

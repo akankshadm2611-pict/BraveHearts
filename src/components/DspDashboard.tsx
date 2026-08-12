@@ -1,16 +1,24 @@
 import React, { useState } from 'react';
-import { Case, CrimeType, CaseStatus, Suspect, User, CrimeDistributionData, MonthlyCrimeData } from '../types';
+import { Case, CrimeType, CaseStatus, Suspect, User, CrimeDistributionData, MonthlyCrimeData, SuspectStatus } from '../types';
+import { initialCrimeHotspots } from '../data/crimeHotspots';
 import { DashboardCharts } from './DashboardCharts';
 import { CrimeMap } from './CrimeMap';
-import { Plus, Shield, Search, Filter, FolderKanban, CheckCircle2, Clock, AlertCircle, Eye, UserPlus, ShieldAlert, UserCheck, UserX, Trash2 } from 'lucide-react';
+import { CaseHeatmap } from './CaseHeatmap';
+import { CaseSuspectModal } from './CaseSuspectModal';
+import { Plus, Shield, Search, Filter, FolderKanban, CheckCircle2, Clock, AlertCircle, Eye, UserPlus, ShieldAlert, UserCheck, UserX, Trash2, MapPin } from 'lucide-react';
 
 interface DspDashboardProps {
   cases: Case[];
+  suspects?: Suspect[];
   onCreateCase: (newCase: Case) => void;
   onUpdateCaseHost?: (caseId: string, hostId: string, hostName: string) => void;
   hostsList: User[];
   onSelectCase: (c: Case) => void;
   onOpenSuspectManagement: () => void;
+  onManageCaseSuspects?: (caseId: string, suspectIds: string[]) => void;
+  onCreateSuspect?: (newSuspect: Suspect) => void;
+  onUpdateSuspect?: (updatedSuspect: Suspect) => void;
+  currentUser?: User;
   distributionData: CrimeDistributionData[];
   monthlyData: MonthlyCrimeData[];
   themeMode?: 'dark' | 'bright';
@@ -18,17 +26,23 @@ interface DspDashboardProps {
 
 export const DspDashboard: React.FC<DspDashboardProps> = ({
   cases,
+  suspects = [],
   onCreateCase,
   onUpdateCaseHost,
   hostsList,
   onSelectCase,
   onOpenSuspectManagement,
+  onManageCaseSuspects,
+  onCreateSuspect,
+  onUpdateSuspect,
+  currentUser,
   distributionData,
   monthlyData,
   themeMode = 'dark',
 }) => {
   const [showCreateCaseModal, setShowCreateCaseModal] = useState(false);
   const [managingHostCase, setManagingHostCase] = useState<Case | null>(null);
+  const [suspectModalCase, setSuspectModalCase] = useState<Case | null>(null);
   const [selectedHostForReassign, setSelectedHostForReassign] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,9 +52,55 @@ export const DspDashboard: React.FC<DspDashboardProps> = ({
   const [customCrimeType, setCustomCrimeType] = useState<string>('');
   const [dateAssigned, setDateAssigned] = useState<string>(new Date().toISOString().split('T')[0]);
   const [caseName, setCaseName] = useState('');
+  const [victimName, setVictimName] = useState('');
+  const [witnessName, setWitnessName] = useState('');
+  const [location, setLocation] = useState('Downtown Central Financial Sector, Sector 12, Metro City');
   const [description, setDescription] = useState('');
   const [assignedHostId, setAssignedHostId] = useState<string>(hostsList[0]?.id || 'u-host-1');
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High' | 'Critical'>('High');
+  const [selectedSuspectIds, setSelectedSuspectIds] = useState<string[]>([]);
+  const [suspectValidationError, setSuspectValidationError] = useState('');
+
+  // Inline Suspect Creation Form State inside Create Case Modal
+  const [showInlineNewSuspect, setShowInlineNewSuspect] = useState(false);
+  const [inlineSuspectName, setInlineSuspectName] = useState('');
+  const [inlineSuspectAge, setInlineSuspectAge] = useState<number>(30);
+  const [inlineSuspectGender, setInlineSuspectGender] = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [inlineSuspectStatus, setInlineSuspectStatus] = useState<SuspectStatus>('Under Investigation');
+  const [inlineSuspectAddress, setInlineSuspectAddress] = useState('');
+
+  const handleAddInlineSuspect = () => {
+    if (!inlineSuspectName.trim() || !inlineSuspectAddress.trim()) {
+      alert('Please enter Suspect Name and Address');
+      return;
+    }
+
+    const newSuspectId = `SUS-${Math.floor(1000 + Math.random() * 9000)}`;
+    const newSuspectObj: Suspect = {
+      id: newSuspectId,
+      fullName: inlineSuspectName.trim(),
+      age: inlineSuspectAge,
+      gender: inlineSuspectGender,
+      crime: crimeType === 'Other' ? customCrimeType || 'Other Crime' : crimeType,
+      address: inlineSuspectAddress.trim(),
+      status: inlineSuspectStatus,
+      photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+      linkedCaseIds: [],
+      connectedSuspects: [],
+      notes: 'Created directly during Case creation by DSP.',
+    };
+
+    if (onCreateSuspect) {
+      onCreateSuspect(newSuspectObj);
+    }
+    setSelectedSuspectIds((prev) => [...prev, newSuspectId]);
+    setSuspectValidationError('');
+
+    // Reset inline form
+    setInlineSuspectName('');
+    setInlineSuspectAddress('');
+    setShowInlineNewSuspect(false);
+  };
 
   // Stats calculation
   const totalCases = cases.length;
@@ -51,19 +111,35 @@ export const DspDashboard: React.FC<DspDashboardProps> = ({
 
   const handleCreateCaseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!caseName.trim() || !description.trim()) return;
+    if (!caseName.trim() || !victimName.trim() || !description.trim()) return;
     if (crimeType === 'Other' && !customCrimeType.trim()) return;
 
     const selectedHostObj = hostsList.find((h) => h.id === assignedHostId) || hostsList[0];
     const finalCrimeType = crimeType === 'Other' ? (customCrimeType.trim() || 'Other') : crimeType;
+    const finalLocation = location.trim() || 'Downtown Central Financial Sector, Sector 12, Metro City';
+
+    // Match location with hotspot center for map pin rendering
+    const matchedHs = initialCrimeHotspots.find((hs) =>
+      finalLocation.toLowerCase().includes(hs.areaName.toLowerCase()) ||
+      (hs.areaName.toLowerCase().split(' ')[0].length > 3 && finalLocation.toLowerCase().includes(hs.areaName.toLowerCase().split(' ')[0]))
+    );
+    const caseCoords: [number, number] = matchedHs
+      ? [matchedHs.center[0] + (Math.random() - 0.5) * 0.004, matchedHs.center[1] + (Math.random() - 0.5) * 0.004]
+      : [18.940 + (Math.random() - 0.5) * 0.01, 72.835 + (Math.random() - 0.5) * 0.01];
+
+    const newCaseId = `CR-2026-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const newCase: Case = {
-      id: `CR-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: newCaseId,
       crimeType: finalCrimeType,
       dateAssigned,
       caseName: caseName.trim(),
+      victimName: victimName.trim(),
+      witnessName: witnessName.trim() || undefined,
+      location: finalLocation,
+      coordinates: caseCoords,
       description: description.trim(),
-      status: 'Active',
+      status: 'Pending', // Default status when created
       assignedHostId: selectedHostObj ? selectedHostObj.id : 'u-host-1',
       assignedHostName: selectedHostObj ? selectedHostObj.fullName : 'Host Inspector Amit Verma',
       assignedOfficerIds: [],
@@ -73,14 +149,53 @@ export const DspDashboard: React.FC<DspDashboardProps> = ({
       evidence: [],
       createdAt: new Date().toLocaleString(),
       priority,
+      timeline: [
+        {
+          id: `tl-${newCaseId}-1`,
+          timestamp: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          title: 'Case Registered',
+          description: `Complaint / FIR officially registered in the portal. Victim: ${victimName.trim()}. Investigation initialized in Pending state.`,
+          performerName: 'DSP Admin',
+          performerRole: 'DSP',
+          statusTag: 'Pending',
+        },
+      ],
     };
 
     onCreateCase(newCase);
-    setShowCreateCaseModal(false);
+
+    if (selectedSuspectIds.length > 0 && onManageCaseSuspects) {
+      onManageCaseSuspects(newCaseId, selectedSuspectIds);
+    }
+
+    // Reset state
     setCaseName('');
-    setDescription('');
+    setVictimName('');
+    setWitnessName('');
     setCustomCrimeType('');
-    setCrimeType('Armed Robbery');
+    setDescription('');
+    setSelectedSuspectIds([]);
+    setSuspectValidationError('');
+    setShowCreateCaseModal(false);
+
+    // Pre-populate investigation progress in localStorage
+    const initialStepsForNewCase = [
+      { id: `step-1-${Date.now()}`, label: 'Complaint / FIR Registered', completed: true },
+      { id: `step-2-${Date.now()}`, label: 'Crime Scene Examination', completed: false },
+      { id: `step-3-${Date.now()}`, label: 'Evidence Collected & Documented', completed: false },
+      { id: `step-4-${Date.now()}`, label: 'Witness Statements Recorded', completed: false },
+      { id: `step-5-${Date.now()}`, label: 'Suspect(s) Identified', completed: false },
+      { id: `step-6-${Date.now()}`, label: 'Suspect Investigation Completed', completed: false },
+      { id: `step-7-${Date.now()}`, label: 'Forensic / Lab Reports Received', completed: false },
+      { id: `step-8-${Date.now()}`, label: 'Evidence Correlation Completed', completed: false },
+      { id: `step-9-${Date.now()}`, label: 'Investigation Report Prepared', completed: false },
+      { id: `step-10-${Date.now()}`, label: 'Final Review Completed', completed: false, isFixedEnd: true },
+    ];
+    try {
+      localStorage.setItem(`investigation_progress_${newCase.id}`, JSON.stringify(initialStepsForNewCase));
+    } catch (e) {
+      console.error('Failed to set initial investigation progress', e);
+    }
   };
 
   const handleOpenManageHostModal = (c: Case) => {
@@ -184,8 +299,15 @@ export const DspDashboard: React.FC<DspDashboardProps> = ({
         </div>
       </div>
 
-      {/* Interactive Crime Hotspot Map */}
-      <CrimeMap themeMode={themeMode} />
+      {/* Interactive Crime Hotspot Map & Case Registration Heatmap */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch my-6">
+        <div className="flex flex-col min-w-0 h-full">
+          <CrimeMap cases={cases} suspects={suspects} onSelectCase={onSelectCase} themeMode={themeMode} />
+        </div>
+        <div className="flex flex-col min-w-0 h-full">
+          <CaseHeatmap cases={cases} themeMode={themeMode} />
+        </div>
+      </div>
 
       {/* Analytics Charts */}
       <DashboardCharts
@@ -196,12 +318,12 @@ export const DspDashboard: React.FC<DspDashboardProps> = ({
 
       {/* Cases List & Filters */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <h2 className={`text-lg sm:text-xl font-bold flex items-center ${themeMode === 'bright' ? 'text-amber-800' : 'text-yellow-400'}`}>
-            <FolderKanban className="w-5 h-5 mr-2" /> Master Cases Ledger
+            <FolderKanban className="w-5 h-5 mr-2 shrink-0" /> Master Cases Ledger ({filteredCases.length})
           </h2>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Filter Pills */}
             <div className={`flex items-center space-x-1 p-1 rounded-xl text-xs sm:text-sm border overflow-x-auto max-w-full ${
               themeMode === 'bright' ? 'bg-slate-200 border-slate-400' : 'bg-slate-900 border-blue-900/50'
@@ -210,7 +332,7 @@ export const DspDashboard: React.FC<DspDashboardProps> = ({
                 <button
                   key={st}
                   onClick={() => setStatusFilter(st)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                     statusFilter === st
                       ? 'bg-yellow-500 text-slate-950 shadow-md font-extrabold'
                       : themeMode === 'bright'
@@ -222,32 +344,57 @@ export const DspDashboard: React.FC<DspDashboardProps> = ({
                 </button>
               ))}
             </div>
+
+            {/* Search Bar beside the Filter */}
+            <div className="relative min-w-[200px] sm:min-w-[240px] flex-1 sm:flex-initial">
+              <Search className={`w-4 h-4 absolute left-3 top-2.5 ${themeMode === 'bright' ? 'text-slate-500' : 'text-slate-400'}`} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search case name, ID, or crime..."
+                className={`w-full pl-9 pr-3 py-1.5 rounded-xl border text-xs sm:text-sm font-medium transition-all focus:outline-none ${
+                  themeMode === 'bright'
+                    ? 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-amber-600 focus:ring-1 focus:ring-amber-600'
+                    : 'bg-slate-900 border-blue-900/50 text-white placeholder:text-slate-500 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500'
+                }`}
+              />
+            </div>
           </div>
         </div>
 
         {/* Case Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredCases.map((c) => (
+        {filteredCases.length === 0 ? (
+          <div className={`p-8 rounded-2xl border border-dashed text-center space-y-2 my-4 ${
+            themeMode === 'bright' ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-slate-900/40 border-slate-800 text-slate-400'
+          }`}>
+            <Search className="w-8 h-8 text-yellow-500 mx-auto" />
+            <h4 className="text-sm font-bold">No Matching Cases Found</h4>
+            <p className="text-xs text-slate-500">Try adjusting your completion status filter or search query.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredCases.map((c) => (
             <div
               key={c.id}
               onClick={() => onSelectCase(c)}
               className={`p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.01] ${
                 themeMode === 'bright'
-                  ? 'bg-white border-2 border-slate-300 shadow-md hover:border-slate-400 hover:shadow-lg text-slate-900'
+                  ? 'bg-gradient-to-r from-sky-100/80 via-blue-50/50 to-white border-2 border-sky-200 shadow-md hover:border-blue-300 hover:shadow-lg text-slate-900'
                   : 'bg-slate-900/80 border-blue-900/50 hover:bg-slate-900 hover:border-blue-700/60 text-slate-100'
               }`}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center space-x-2 mb-1.5">
-                    <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded border ${
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                    <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded border shrink-0 ${
                       themeMode === 'bright'
-                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        ? 'bg-blue-100 text-blue-950 border-blue-300'
                         : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30'
                     }`}>
                       {c.id}
                     </span>
-                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${
+                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded shrink-0 ${
                       themeMode === 'bright'
                         ? 'bg-slate-200 text-slate-800 border border-slate-300'
                         : 'text-slate-300 bg-slate-800'
@@ -255,18 +402,67 @@ export const DspDashboard: React.FC<DspDashboardProps> = ({
                       {c.crimeType}
                     </span>
                   </div>
-                  <h3 className={`text-base sm:text-lg font-extrabold ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-100'}`}>
+                  <h3 className={`text-base sm:text-lg font-extrabold leading-snug ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-100'}`}>
                     {c.caseName}
                   </h3>
+                  <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold mt-1 ${
+                    themeMode === 'bright' ? 'text-slate-700' : 'text-slate-300'
+                  }`}>
+                    <span className="flex items-center text-red-600 dark:text-red-400 font-bold">
+                      <MapPin className="w-3.5 h-3.5 mr-1 shrink-0 text-red-500" />
+                      {c.location}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-1.5 text-[11px]">
+                    <span className={`px-2 py-0.5 rounded font-bold border ${
+                      themeMode === 'bright'
+                        ? 'bg-amber-100 text-amber-950 border-amber-300 font-extrabold'
+                        : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    }`}>
+                      👤 Victim: {c.victimName}
+                    </span>
+                    {c.witnessName && (
+                      <span className={`px-2 py-0.5 rounded font-medium border ${
+                        themeMode === 'bright'
+                          ? 'bg-blue-100 text-blue-950 border-blue-300 font-extrabold'
+                          : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                      }`}>
+                        👁️ Witness: {c.witnessName}
+                      </span>
+                    )}
+                    {(() => {
+                      const caseSuspects = suspects.filter(s => s.linkedCaseIds.includes(c.id));
+                      if (caseSuspects.length === 0) return null;
+                      return (
+                        <span className={`px-2 py-0.5 rounded font-bold border flex items-center ${
+                          themeMode === 'bright'
+                            ? 'bg-red-100 text-red-950 border-red-300 font-extrabold'
+                            : 'bg-red-500/15 text-red-300 border-red-500/30'
+                        }`}>
+                          <UserX className="w-3 h-3 mr-1" /> Suspects: {caseSuspects.length}
+                        </span>
+                      );
+                    })()}
+                  </div>
                 </div>
 
                 <span
-                  className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                  className={`text-xs font-bold px-3 py-1 rounded-full border shrink-0 ${
                     c.status === 'Solved'
-                      ? 'bg-emerald-500/20 text-emerald-600 border-emerald-500/50'
+                      ? themeMode === 'bright'
+                        ? 'bg-emerald-100 text-emerald-950 border-emerald-400 font-extrabold'
+                        : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
+                      : c.status === 'Under Investigation'
+                      ? themeMode === 'bright'
+                        ? 'bg-amber-100 text-amber-950 border-amber-400 font-extrabold'
+                        : 'bg-orange-500/20 text-orange-400 border-orange-500/50'
                       : c.status === 'Active'
-                      ? 'bg-red-500/20 text-red-600 border-red-500/50'
-                      : 'bg-amber-500/20 text-amber-700 border-amber-500/50'
+                      ? themeMode === 'bright'
+                        ? 'bg-red-100 text-red-950 border-red-400 font-extrabold'
+                        : 'bg-red-500/20 text-red-400 border-red-500/50'
+                      : themeMode === 'bright'
+                      ? 'bg-yellow-100 text-amber-950 border-yellow-400 font-extrabold'
+                      : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50'
                   }`}
                 >
                   {c.status}
@@ -277,50 +473,88 @@ export const DspDashboard: React.FC<DspDashboardProps> = ({
                 {c.description}
               </p>
 
-              <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-4 mt-4 border-t text-xs sm:text-sm ${
+              <div className={`flex flex-wrap items-center justify-between gap-2 pt-3 mt-3 border-t text-xs sm:text-sm ${
                 themeMode === 'bright' ? 'border-slate-300' : 'border-slate-800/80'
               }`}>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                   <span className={`font-bold ${themeMode === 'bright' ? 'text-amber-800' : 'text-amber-300/90'}`}>
                     Host: <span className="underline decoration-amber-500/40">{c.assignedHostName || 'Unassigned'}</span>
                   </span>
 
-                  {/* DSP Host Management Actions (Reassign & Delete) */}
-                  <div className="flex items-center space-x-1.5 ml-1">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenManageHostModal(c);
-                      }}
-                      className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/40 rounded-lg text-[11px] font-bold flex items-center space-x-1 transition-all"
-                      title="Reassign or change host for this case"
-                    >
-                      <UserCheck className="w-3.5 h-3.5" />
-                      <span>{c.assignedHostName && c.assignedHostName !== 'Unassigned' ? 'Reassign' : 'Assign'}</span>
-                    </button>
+                  {/* DSP Host & Suspect Management Actions */}
+                  <div className="flex flex-wrap items-center gap-1 shrink-0">
+                    {c.status !== 'Solved' ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenManageHostModal(c);
+                          }}
+                          className={`px-2.5 py-1 border rounded-lg text-[11px] font-extrabold flex items-center space-x-1 transition-all cursor-pointer ${
+                            themeMode === 'bright'
+                              ? 'bg-amber-200 hover:bg-amber-300 text-amber-950 border-amber-400 shadow-xs'
+                              : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border-amber-500/40'
+                          }`}
+                          title="Reassign or change host for this case"
+                        >
+                          <UserCheck className="w-3.5 h-3.5 shrink-0" />
+                          <span className="hidden xs:inline">{c.assignedHostName && c.assignedHostName !== 'Unassigned' ? 'Reassign' : 'Assign'}</span>
+                        </button>
 
-                    {c.assignedHostName && c.assignedHostName !== 'Unassigned' && (
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteHostFromCase(c.id, e)}
-                        className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/40 rounded-lg text-[11px] font-bold flex items-center space-x-1 transition-all"
-                        title="Delete assigned host from this case"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Delete</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSuspectModalCase(c);
+                          }}
+                          className={`px-2.5 py-1 border rounded-lg text-[11px] font-extrabold flex items-center space-x-1 transition-all cursor-pointer ${
+                            themeMode === 'bright'
+                              ? 'bg-rose-200 hover:bg-rose-300 text-rose-950 border-rose-400 shadow-xs'
+                              : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
+                          }`}
+                          title="Manage case suspects"
+                        >
+                          <UserX className="w-3.5 h-3.5 shrink-0" />
+                          <span className="hidden xs:inline">Suspects</span>
+                        </button>
+
+                        {c.assignedHostName && c.assignedHostName !== 'Unassigned' && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteHostFromCase(c.id, e)}
+                            className={`px-2.5 py-1 border rounded-lg text-[11px] font-extrabold flex items-center space-x-1 transition-all cursor-pointer ${
+                              themeMode === 'bright'
+                                ? 'bg-rose-200 hover:bg-rose-300 text-rose-950 border-rose-400 shadow-xs'
+                                : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
+                            }`}
+                            title="Delete assigned host from this case"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                            <span className="hidden sm:inline">Delete Host</span>
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded border ${
+                        themeMode === 'bright'
+                          ? 'bg-emerald-200 text-emerald-950 border-emerald-400'
+                          : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                      }`}>
+                        🔒 Case Solved (Read-Only)
+                      </span>
                     )}
                   </div>
                 </div>
 
-                <span className={`font-mono text-xs flex items-center font-bold ${themeMode === 'bright' ? 'text-slate-800' : 'text-slate-400'}`}>
-                  <Eye className="w-4 h-4 mr-1 text-yellow-500" /> {c.evidence.length} Evidence
+                <span className={`font-mono text-xs flex items-center font-bold shrink-0 ${themeMode === 'bright' ? 'text-slate-800' : 'text-slate-400'}`}>
+                  <Eye className="w-4 h-4 mr-1 text-yellow-500 shrink-0" /> {c.evidence.length} Evidence
                 </span>
               </div>
             </div>
           ))}
         </div>
+      )}
       </div>
 
       {/* DSP Create Case Modal */}
@@ -428,6 +662,59 @@ export const DspDashboard: React.FC<DspDashboardProps> = ({
                     value={caseName}
                     onChange={(e) => setCaseName(e.target.value)}
                     placeholder="e.g. Operation GoldVault Syndicate"
+                    className={`w-full px-3 py-2 rounded-lg text-xs ${
+                      themeMode === 'bright'
+                        ? 'bg-white border border-slate-300 text-slate-900 placeholder-slate-400 shadow-xs'
+                        : 'bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500'
+                    }`}
+                    required
+                  />
+                </div>
+
+                <div className="sm:col-span-1">
+                  <label className={`block text-xs font-semibold mb-1 ${
+                    themeMode === 'bright' ? 'text-red-950 font-bold' : 'text-red-400 font-bold'
+                  }`}>Victim / Complainant Name * (Compulsory)</label>
+                  <input
+                    type="text"
+                    value={victimName}
+                    onChange={(e) => setVictimName(e.target.value)}
+                    placeholder="e.g. Rajesh Sharma (Manager)"
+                    className={`w-full px-3 py-2 rounded-lg text-xs ${
+                      themeMode === 'bright'
+                        ? 'bg-white border border-red-300 text-slate-900 placeholder-slate-400 shadow-xs focus:border-red-500'
+                        : 'bg-slate-900 border border-red-500/50 text-slate-100 placeholder-slate-500 focus:border-red-400'
+                    }`}
+                    required
+                  />
+                </div>
+
+                <div className="sm:col-span-1">
+                  <label className={`block text-xs font-semibold mb-1 ${
+                    themeMode === 'bright' ? 'text-slate-800' : 'text-slate-300'
+                  }`}>Witness Name (Optional)</label>
+                  <input
+                    type="text"
+                    value={witnessName}
+                    onChange={(e) => setWitnessName(e.target.value)}
+                    placeholder="e.g. Inspector Suresh Kadam"
+                    className={`w-full px-3 py-2 rounded-lg text-xs ${
+                      themeMode === 'bright'
+                        ? 'bg-white border border-slate-300 text-slate-900 placeholder-slate-400 shadow-xs'
+                        : 'bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500'
+                    }`}
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className={`block text-xs font-semibold mb-1 ${
+                    themeMode === 'bright' ? 'text-slate-800' : ''
+                  }`}>Case Location / Venue *</label>
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="e.g. Downtown Central Financial Sector, Sector 12, Metro City"
                     className={`w-full px-3 py-2 rounded-lg text-xs ${
                       themeMode === 'bright'
                         ? 'bg-white border border-slate-300 text-slate-900 placeholder-slate-400 shadow-xs'
@@ -662,6 +949,20 @@ export const DspDashboard: React.FC<DspDashboardProps> = ({
             </div>
           </div>
         </div>
+      )}
+      {/* DSP Case Suspect Modal */}
+      {suspectModalCase && (
+        <CaseSuspectModal
+          c={suspectModalCase}
+          isOpen={!!suspectModalCase}
+          onClose={() => setSuspectModalCase(null)}
+          suspects={suspects}
+          currentUser={currentUser || ({ id: 'dsp-1', username: 'dsp_admin', fullName: 'DSP Officer', email: 'dsp@police.gov.in', phone: '9999999999', department: 'HQ', badgeId: 'DSP-001', status: 'Approved', role: 'DSP' })}
+          onManageCaseSuspects={onManageCaseSuspects || (() => {})}
+          onCreateSuspect={onCreateSuspect || (() => {})}
+          onUpdateSuspect={onUpdateSuspect || (() => {})}
+          themeMode={themeMode}
+        />
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import {
   RegistrationRequest,
   PortalNotification,
   EvidenceFile,
+  TimelineEntry,
 } from './types';
 import {
   initialUsers,
@@ -111,6 +112,22 @@ export default function App() {
   const handleRejectRequest = (reqId: string) => {
     setPendingRequests((prev) =>
       prev.map((r) => (r.id === reqId ? { ...r, status: 'Rejected' } : r))
+    );
+  };
+
+  // Update Case Status (e.g. automatically set to Solved when progress reaches 100%)
+  const handleUpdateCaseStatus = (caseId: string, status: Case['status']) => {
+    setCases((prev) =>
+      prev.map((c) => {
+        if (c.id === caseId) {
+          const updated = { ...c, status };
+          if (selectedCaseModal && selectedCaseModal.id === caseId) {
+            setSelectedCaseModal(updated);
+          }
+          return updated;
+        }
+        return c;
+      })
     );
   };
 
@@ -242,11 +259,71 @@ export default function App() {
       }
       return prevModal;
     });
-    addNotification({
+    const notif: PortalNotification = {
+      id: `notif-${Date.now()}`,
       title: 'Evidence File Removed',
       message: `An evidence file was deleted from Case ${caseId}.`,
-      type: 'warning',
-    });
+      timestamp: 'Just now',
+      type: 'Evidence',
+      relatedCaseId: caseId,
+      read: false,
+    };
+    setNotifications((prev) => [notif, ...prev]);
+  };
+
+  // Add Timeline Entry to Case
+  const handleAddTimelineEntry = (caseId: string, entry: Omit<TimelineEntry, 'id'>) => {
+    const newEntry: TimelineEntry = {
+      ...entry,
+      id: `tl-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    };
+
+    setCases((prev) =>
+      prev.map((c) => {
+        if (c.id === caseId) {
+          const updatedTimeline = [...(c.timeline || []), newEntry];
+          const updatedCase = { ...c, timeline: updatedTimeline };
+          if (selectedCaseModal && selectedCaseModal.id === caseId) {
+            setSelectedCaseModal(updatedCase);
+          }
+          return updatedCase;
+        }
+        return c;
+      })
+    );
+  };
+
+  // Update Timeline Entry in Case
+  const handleUpdateTimelineEntry = (caseId: string, updatedEntry: TimelineEntry) => {
+    setCases((prev) =>
+      prev.map((c) => {
+        if (c.id === caseId) {
+          const currentTimeline = c.timeline && c.timeline.length > 0
+            ? c.timeline
+            : [
+                {
+                  id: `initial-${c.id}`,
+                  timestamp: c.createdAt || `${c.dateAssigned}, 09:30 AM`,
+                  title: 'Case Registered',
+                  description: `Complaint received and case officially created. ${c.description}`,
+                  performerName: c.assignedHostName || 'Inspector Sharma',
+                  performerRole: 'Host Inspector',
+                  statusTag: 'Completed' as const,
+                },
+              ];
+          const updatedTimeline = currentTimeline.map((item, idx) => {
+            const itemId = item.id || `tl-${c.id}-${idx}`;
+            return (item.id === updatedEntry.id || itemId === updatedEntry.id) ? updatedEntry : item;
+          });
+          const updatedCase = { ...c, timeline: updatedTimeline };
+          if (selectedCaseModal && selectedCaseModal.id === caseId) {
+            setSelectedCaseModal(updatedCase);
+          }
+          return updatedCase;
+        }
+        return c;
+      })
+    );
   };
 
   // Create New Suspect (DSP & Host)
@@ -257,6 +334,29 @@ export default function App() {
   // Update Suspects List (Node links addition/removal)
   const handleUpdateSuspects = (updatedSuspects: Suspect[]) => {
     setSuspects(updatedSuspects);
+  };
+
+  // Update Single Suspect
+  const handleUpdateSuspect = (updatedSuspect: Suspect) => {
+    setSuspects((prev) =>
+      prev.map((s) => (s.id === updatedSuspect.id ? updatedSuspect : s))
+    );
+  };
+
+  const handleManageCaseSuspects = (caseId: string, selectedSuspectIds: string[]) => {
+    setSuspects((prevSuspects) =>
+      prevSuspects.map((s) => {
+        const isSelected = selectedSuspectIds.includes(s.id);
+        const isCurrentlyLinked = s.linkedCaseIds.includes(caseId);
+
+        if (isSelected && !isCurrentlyLinked) {
+          return { ...s, linkedCaseIds: [...s.linkedCaseIds, caseId] };
+        } else if (!isSelected && isCurrentlyLinked) {
+          return { ...s, linkedCaseIds: s.linkedCaseIds.filter((id) => id !== caseId) };
+        }
+        return s;
+      })
+    );
   };
 
   // Render Login Page when user is not logged in
@@ -304,6 +404,8 @@ export default function App() {
         onToggleTheme={handleToggleTheme}
         notifications={notifications}
         pendingRequests={pendingRequests}
+        cases={cases}
+        onSelectCase={(c) => setSelectedCaseModal(c)}
         onOpenPendingModal={(req) => setSelectedPendingRequestModal(req)}
         onOpenSuspectManagement={() => setCurrentView('suspects')}
         currentView={currentView}
@@ -315,6 +417,7 @@ export default function App() {
         {currentView === 'suspects' ? (
           <SuspectManagement
             suspects={suspects}
+            cases={cases}
             onCreateSuspect={handleCreateSuspect}
             onUpdateSuspects={handleUpdateSuspects}
             userRole={currentUser.role}
@@ -327,11 +430,16 @@ export default function App() {
             {currentUser.role === 'DSP' && (
               <DspDashboard
                 cases={cases}
+                suspects={suspects}
                 onCreateCase={handleCreateCase}
                 onUpdateCaseHost={handleUpdateCaseHost}
                 hostsList={hostsList}
                 onSelectCase={(c) => setSelectedCaseModal(c)}
                 onOpenSuspectManagement={() => setCurrentView('suspects')}
+                onManageCaseSuspects={handleManageCaseSuspects}
+                onCreateSuspect={handleCreateSuspect}
+                onUpdateSuspect={handleUpdateSuspect}
+                currentUser={currentUser}
                 distributionData={crimeDistributionData}
                 monthlyData={monthlyCrimeData}
                 themeMode={themeMode}
@@ -342,11 +450,15 @@ export default function App() {
               <HostDashboard
                 currentUser={currentUser}
                 cases={cases}
+                suspects={suspects}
                 officersList={officersList}
                 advocatesList={advocatesList}
                 onAddMemberToCase={handleAddMemberToCase}
                 onSelectCase={(c) => setSelectedCaseModal(c)}
                 onOpenSuspectManagement={() => setCurrentView('suspects')}
+                onManageCaseSuspects={handleManageCaseSuspects}
+                onCreateSuspect={handleCreateSuspect}
+                onUpdateSuspect={handleUpdateSuspect}
                 distributionData={crimeDistributionData}
                 monthlyData={monthlyCrimeData}
                 themeMode={themeMode}
@@ -357,6 +469,7 @@ export default function App() {
               <OfficerDashboard
                 currentUser={currentUser}
                 cases={cases}
+                suspects={suspects}
                 onSelectCase={(c) => setSelectedCaseModal(c)}
                 distributionData={crimeDistributionData}
                 monthlyData={monthlyCrimeData}
@@ -368,6 +481,7 @@ export default function App() {
               <AdvocateDashboard
                 currentUser={currentUser}
                 cases={cases}
+                suspects={suspects}
                 onSelectCase={(c) => setSelectedCaseModal(c)}
                 distributionData={crimeDistributionData}
                 monthlyData={monthlyCrimeData}
@@ -384,8 +498,15 @@ export default function App() {
         isOpen={Boolean(selectedCaseModal)}
         onClose={() => setSelectedCaseModal(null)}
         currentUser={currentUser}
+        suspects={suspects}
+        onManageCaseSuspects={handleManageCaseSuspects}
+        onCreateSuspect={handleCreateSuspect}
+        onUpdateSuspect={handleUpdateSuspect}
         onUploadEvidence={handleUploadEvidence}
         onDeleteEvidence={handleDeleteEvidence}
+        onAddTimelineEntry={handleAddTimelineEntry}
+        onUpdateTimelineEntry={handleUpdateTimelineEntry}
+        onUpdateCaseStatus={handleUpdateCaseStatus}
         themeMode={themeMode}
       />
 

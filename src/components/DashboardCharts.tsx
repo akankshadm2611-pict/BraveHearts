@@ -31,8 +31,8 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 my-6">
       {/* 1. Pie Chart: Crime Distribution */}
       <div
-        className={`p-5 rounded-2xl border transition-colors ${
-          isDark ? 'bg-slate-900/80 border-blue-900/50 shadow-lg' : 'bg-white border-2 border-slate-300 shadow-md'
+        className={`p-5 rounded-2xl border transition-all h-full flex flex-col justify-between ${
+          isDark ? 'bg-slate-900 border-blue-900/50 shadow-xl' : 'bg-white border-slate-300 shadow-xl'
         }`}
       >
         <div className="mb-4">
@@ -87,8 +87,8 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({
 
       {/* 2. Bar Chart: Monthly Crimes */}
       <div
-        className={`p-5 rounded-2xl border transition-colors ${
-          isDark ? 'bg-slate-900/80 border-blue-900/50 shadow-lg' : 'bg-white border-2 border-slate-300 shadow-md'
+        className={`p-5 rounded-2xl border transition-all h-full flex flex-col justify-between ${
+          isDark ? 'bg-slate-900 border-blue-900/50 shadow-xl' : 'bg-white border-slate-300 shadow-xl'
         }`}
       >
         <div className="mb-4">

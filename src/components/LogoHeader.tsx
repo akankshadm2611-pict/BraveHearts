@@ -162,7 +162,7 @@ export const LogoHeader: React.FC<LogoHeaderProps> = ({
           <p
             className={`tracking-[0.15em] sm:tracking-[0.2em] uppercase font-bold leading-tight whitespace-nowrap shrink-0 ${
               isHorizontal
-                ? 'text-[7.5px] sm:text-[8.5px] md:text-[9px] mt-0.5'
+                ? 'hidden sm:block text-[7.5px] sm:text-[8.5px] md:text-[9px] mt-0.5'
                 : isLarge
                 ? 'text-xs sm:text-sm mt-1'
                 : isSmall

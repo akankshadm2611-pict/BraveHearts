@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Suspect, UserRole } from '../types';
-import { X, Network, Plus, Trash2, User, ChevronRight, AlertCircle, ShieldAlert, GitBranch, ArrowRight } from 'lucide-react';
+import { X, Plus, Trash2, User, ChevronRight, AlertCircle, ShieldAlert, GitBranch, ArrowRight, Share2 } from 'lucide-react';
+import { SuspectBinaryTreeNetworkModal } from './SuspectBinaryTreeNetworkModal';
 
 interface SuspectBinaryTreeModalProps {
   rootSuspect: Suspect;
@@ -23,6 +24,7 @@ export const SuspectBinaryTreeModal: React.FC<SuspectBinaryTreeModalProps> = ({
 }) => {
   const [currentRootId, setCurrentRootId] = useState<string>(initialRootSuspect.id);
   const [showAddNodeForm, setShowAddNodeForm] = useState(false);
+  const [showNetworkModal, setShowNetworkModal] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState<string>('');
   const [relationship, setRelationship] = useState<string>('Co-conspirator');
   const [customRelationship, setCustomRelationship] = useState<string>('');
@@ -49,12 +51,14 @@ export const SuspectBinaryTreeModal: React.FC<SuspectBinaryTreeModalProps> = ({
         return 'bg-red-500/20 text-red-400 border-red-500/50';
       case 'Under Arrest':
         return 'bg-amber-500/20 text-amber-400 border-amber-500/50';
+      case 'Under Investigation':
+        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
       case 'Missing':
         return 'bg-purple-500/20 text-purple-400 border-purple-500/50';
       case 'On Bail':
         return 'bg-blue-500/20 text-blue-400 border-blue-500/50';
       default:
-        return 'bg-slate-500/20 text-slate-300 border-slate-500/50';
+        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
     }
   };
 
@@ -134,9 +138,9 @@ export const SuspectBinaryTreeModal: React.FC<SuspectBinaryTreeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-3 sm:p-5 pt-16 sm:pt-20 bg-black/90 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-2 sm:p-5 bg-black/90 backdrop-blur-md overflow-y-auto">
       <div
-        className={`relative w-full max-w-5xl my-auto rounded-3xl border shadow-2xl overflow-hidden transition-all ${
+        className={`relative w-full max-w-5xl my-auto rounded-3xl border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col transition-all ${
           themeMode === 'bright'
             ? 'bg-white text-slate-900 border-slate-300'
             : 'bg-slate-950 text-slate-100 border-yellow-500/40'
@@ -169,6 +173,15 @@ export const SuspectBinaryTreeModal: React.FC<SuspectBinaryTreeModalProps> = ({
           </div>
 
           <div className="flex items-center justify-end space-x-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowNetworkModal(true)}
+              className="px-3 py-1.5 sm:px-3.5 sm:py-2 font-black rounded-xl text-xs flex items-center space-x-1.5 shadow-md bg-gradient-to-r from-red-600 via-amber-600 to-yellow-500 hover:from-red-500 hover:to-yellow-400 text-slate-950 transition-all cursor-pointer"
+            >
+              <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5]" />
+              <span className="text-[11px] sm:text-xs">Binary Tree Network</span>
+            </button>
+
             {canEditNodes && (
               <button
                 type="button"
@@ -578,7 +591,7 @@ export const SuspectBinaryTreeModal: React.FC<SuspectBinaryTreeModalProps> = ({
               </div>
             ) : (
               <div className="p-8 rounded-2xl bg-slate-900/60 border border-dashed border-slate-800 text-center max-w-md my-4 space-y-3">
-                <Network className="w-10 h-10 text-slate-600 mx-auto" />
+                <GitBranch className="w-10 h-10 text-slate-600 mx-auto" />
                 <h5 className="text-sm font-bold text-slate-300">No Node Connections Branching From This Suspect</h5>
                 <p className="text-xs text-slate-500">
                   This suspect is currently an isolated node. Host Administrators and DSP officers can attach co-conspirator and accomplice nodes using the button above.
@@ -588,6 +601,19 @@ export const SuspectBinaryTreeModal: React.FC<SuspectBinaryTreeModalProps> = ({
           </div>
         </div>
       </div>
+
+      {showNetworkModal && (
+        <SuspectBinaryTreeNetworkModal
+          rootSuspect={currentRoot}
+          suspects={suspects}
+          themeMode={themeMode}
+          onClose={() => setShowNetworkModal(false)}
+          onSelectSuspectProfile={(s) => {
+            if (onSelectSuspectProfile) onSelectSuspectProfile(s);
+            setShowNetworkModal(false);
+          }}
+        />
+      )}
     </div>
   );
 };
