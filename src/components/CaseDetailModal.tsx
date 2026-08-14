@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Case, EvidenceFile, UserRole, User, TimelineEntry, Suspect } from '../types';
-import { X, Upload, FileText, Video, Image, Music, Shield, AlertTriangle, Users, Calendar, Clock, Paperclip, Eye, CheckCircle, FileDown, Trash2, BarChart3, MapPin, UserX, UserPlus, Edit3 } from 'lucide-react';
+import { X, Upload, FileText, Video, Image, Music, Shield, AlertTriangle, Users, Calendar, Clock, Paperclip, Eye, CheckCircle, FileDown, Trash2, BarChart3, MapPin, UserX, UserPlus, Edit3, MessageSquare, Check } from 'lucide-react';
 import { CaseTimelineModal } from './CaseTimelineModal';
 import { InvestigationProgressModal } from './InvestigationProgressModal';
 import { CaseSuspectModal } from './CaseSuspectModal';
@@ -15,6 +15,7 @@ interface CaseDetailModalProps {
   onCreateSuspect?: (newSuspect: Suspect) => void;
   onUpdateSuspect?: (updatedSuspect: Suspect) => void;
   onUploadEvidence: (caseId: string, evidence: EvidenceFile) => void;
+  onUpdateEvidence?: (caseId: string, evidence: EvidenceFile) => void;
   onDeleteEvidence?: (caseId: string, evidenceId: string) => void;
   onAddTimelineEntry?: (caseId: string, entry: Omit<TimelineEntry, 'id'>) => void;
   onUpdateTimelineEntry?: (caseId: string, entry: TimelineEntry) => void;
@@ -32,6 +33,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
   onCreateSuspect,
   onUpdateSuspect,
   onUploadEvidence,
+  onUpdateEvidence,
   onDeleteEvidence,
   onAddTimelineEntry,
   onUpdateTimelineEntry,
@@ -45,12 +47,21 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
   const [fileName, setFileName] = useState('');
   const [fileType, setFileType] = useState<EvidenceFile['fileType']>('Document');
   const [description, setDescription] = useState('');
+  const [notes, setNotes] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [fileSizeStr, setFileSizeStr] = useState<string>('');
   const [dragActive, setDragActive] = useState(false);
   const [previewModalUrl, setPreviewModalUrl] = useState<{ url: string; title: string } | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // Evidence Edit state
+  const [editingEvidenceId, setEditingEvidenceId] = useState<string | null>(null);
+  const [editFileName, setEditFileName] = useState('');
+  const [editFileType, setEditFileType] = useState<EvidenceFile['fileType']>('Document');
+  const [editDescription, setEditDescription] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -506,6 +517,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
   const resetForm = () => {
     setFileName('');
     setDescription('');
+    setNotes('');
     setSelectedFile(null);
     setFilePreviewUrl(null);
     setFileSizeStr('');
@@ -522,6 +534,7 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
       fileName: fileName.trim(),
       fileType,
       description: description.trim(),
+      notes: notes.trim() || undefined,
       uploadedBy: currentUser.fullName,
       uploadedByRole: currentUser.role,
       uploadedAt: new Date().toLocaleString(),
@@ -531,6 +544,35 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
 
     onUploadEvidence(c.id, newEv);
     resetForm();
+  };
+
+  const handleStartEditEvidence = (ev: EvidenceFile) => {
+    setEditingEvidenceId(ev.id);
+    setEditFileName(ev.fileName);
+    setEditFileType(ev.fileType);
+    setEditDescription(ev.description);
+    setEditNotes(ev.notes || '');
+    setEditPreviewUrl(ev.url || null);
+  };
+
+  const handleSaveEditEvidence = (ev: EvidenceFile) => {
+    if (!editFileName.trim() || !editDescription.trim()) return;
+
+    const updatedEv: EvidenceFile = {
+      ...ev,
+      fileName: editFileName.trim(),
+      fileType: editFileType,
+      description: editDescription.trim(),
+      notes: editNotes.trim() || undefined,
+      url: editPreviewUrl || ev.url,
+    };
+
+    if (onUpdateEvidence) {
+      onUpdateEvidence(c.id, updatedEv);
+    } else {
+      onUploadEvidence(c.id, updatedEv);
+    }
+    setEditingEvidenceId(null);
   };
 
   const getFileIcon = (type: EvidenceFile['fileType']) => {
@@ -936,6 +978,23 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
                   />
                 </div>
 
+                <div>
+                  <label className={`block text-[11px] font-extrabold mb-1 ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-300'}`}>
+                    Notes / Comments
+                  </label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={2}
+                    placeholder="Add notes, officer comments, or investigation remarks..."
+                    className={`w-full px-3 py-1.5 rounded-lg text-xs border font-bold ${
+                      themeMode === 'bright'
+                        ? 'bg-white border-2 border-slate-300 text-slate-900 placeholder:text-slate-400'
+                        : 'bg-slate-950 border-slate-700 text-slate-100'
+                    }`}
+                  />
+                </div>
+
                 <div className="flex justify-end space-x-2 pt-1">
                   <button
                     type="button"
@@ -963,112 +1022,257 @@ export const CaseDetailModal: React.FC<CaseDetailModalProps> = ({
             <div className="space-y-2">
               {(c.evidence || []).length > 0 ? (
                 (c.evidence || []).map((ev) => (
-                  <div
-                    key={ev.id}
-                    className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-start justify-between gap-3 transition-colors ${
-                      themeMode === 'bright'
-                        ? 'bg-white border-2 border-slate-300 shadow-sm hover:border-slate-400'
-                        : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-start space-x-3">
-                      <div className={`p-2 rounded-lg border mt-0.5 shrink-0 ${
+                  editingEvidenceId === ev.id ? (
+                    <div
+                      key={ev.id}
+                      className={`p-4 rounded-xl border space-y-3 transition-colors ${
                         themeMode === 'bright'
-                          ? 'bg-slate-100 border-slate-300'
-                          : 'bg-slate-800 border-slate-700'
-                      }`}>
-                        {getFileIcon(ev.fileType)}
+                          ? 'bg-blue-50/90 border-2 border-blue-400 text-slate-900 shadow-md'
+                          : 'bg-slate-900 border-2 border-blue-500/50 text-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between border-b pb-2 border-blue-200 dark:border-slate-800">
+                        <span className={`text-xs font-black uppercase flex items-center gap-1.5 ${themeMode === 'bright' ? 'text-blue-900' : 'text-blue-400'}`}>
+                          <Edit3 className="w-3.5 h-3.5" /> Edit Evidence & Notes
+                        </span>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${themeMode === 'bright' ? 'bg-blue-100 text-blue-900' : 'bg-slate-800 text-slate-300'}`}>
+                          {ev.id}
+                        </span>
                       </div>
-                      <div>
-                        <div className="flex items-center space-x-2 flex-wrap">
-                          <p className={`text-xs font-black font-mono ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-100'}`}>{ev.fileName}</p>
-                          <span className={`text-[10px] px-2 py-0.2 rounded font-bold ${
-                            themeMode === 'bright'
-                              ? 'bg-slate-200 text-slate-800'
-                              : 'bg-slate-800 text-slate-300'
-                          }`}>
-                            {ev.fileSize}
-                          </span>
-                        </div>
-                        <p className={`text-xs mt-0.5 font-semibold ${themeMode === 'bright' ? 'text-slate-700' : 'text-slate-400'}`}>{ev.description}</p>
-                        <p className={`text-[10px] mt-1 font-bold ${themeMode === 'bright' ? 'text-amber-900' : 'text-yellow-400/80'}`}>
-                          Uploaded by: <strong>{ev.uploadedBy}</strong> ({ev.uploadedByRole}) • {ev.uploadedAt}
-                        </p>
-                      </div>
-                    </div>
 
-                    {/* Image / File Preview & Delete Action Buttons */}
-                    <div className="sm:self-center shrink-0 flex items-center space-x-2">
-                      {ev.url && (
-                        <>
-                          {ev.fileType === 'Image' && (
-                            <img
-                              src={ev.url}
-                              alt={ev.fileName}
-                              className="w-10 h-10 object-cover rounded-lg border border-yellow-500/50 cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => setPreviewModalUrl({ url: ev.url!, title: ev.fileName })}
-                            />
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setPreviewModalUrl({ url: ev.url!, title: ev.fileName })}
-                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1 ${
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className={`block text-[11px] font-extrabold mb-1 ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-300'}`}>
+                            Document / File Title *
+                          </label>
+                          <input
+                            type="text"
+                            value={editFileName}
+                            onChange={(e) => setEditFileName(e.target.value)}
+                            className={`w-full px-3 py-1.5 rounded-lg text-xs border font-bold ${
                               themeMode === 'bright'
-                                ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
-                                : 'bg-slate-800 text-yellow-400 border border-yellow-500/30 hover:bg-slate-700'
+                                ? 'bg-white border-2 border-slate-300 text-slate-900'
+                                : 'bg-slate-950 border-slate-700 text-slate-100'
+                            }`}
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className={`block text-[11px] font-extrabold mb-1 ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-300'}`}>
+                            Category
+                          </label>
+                          <select
+                            value={editFileType}
+                            onChange={(e) => setEditFileType(e.target.value as EvidenceFile['fileType'])}
+                            className={`w-full px-3 py-1.5 rounded-lg text-xs border font-bold ${
+                              themeMode === 'bright'
+                                ? 'bg-white border-2 border-slate-300 text-slate-900'
+                                : 'bg-slate-950 border-slate-700 text-slate-100'
                             }`}
                           >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>View Photo</span>
-                          </button>
-                        </>
-                      )}
+                            <option value="Document">Document / Report</option>
+                            <option value="Image">Image / Photograph</option>
+                            <option value="Video">CCTV / Video Recording</option>
+                            <option value="Audio">Audio / Wiretap</option>
+                            <option value="Forensic">Forensic Analysis</option>
+                          </select>
+                        </div>
+                      </div>
 
-                      {c.status !== 'Solved' && onDeleteEvidence && (
-                        confirmDeleteId === ev.id ? (
-                          <div className="flex items-center space-x-1 animate-fadeIn">
+                      <div>
+                        <label className={`block text-[11px] font-extrabold mb-1 ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-300'}`}>
+                          Brief Description *
+                        </label>
+                        <textarea
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          rows={2}
+                          className={`w-full px-3 py-1.5 rounded-lg text-xs border font-bold ${
+                            themeMode === 'bright'
+                              ? 'bg-white border-2 border-slate-300 text-slate-900'
+                              : 'bg-slate-950 border-slate-700 text-slate-100'
+                          }`}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className={`block text-[11px] font-extrabold mb-1 ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-300'}`}>
+                          Notes / Comments
+                        </label>
+                        <textarea
+                          value={editNotes}
+                          onChange={(e) => setEditNotes(e.target.value)}
+                          rows={2}
+                          placeholder="Add or update notes and comments..."
+                          className={`w-full px-3 py-1.5 rounded-lg text-xs border font-bold ${
+                            themeMode === 'bright'
+                              ? 'bg-white border-2 border-slate-300 text-slate-900'
+                              : 'bg-slate-950 border-slate-700 text-slate-100'
+                          }`}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end space-x-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingEvidenceId(null)}
+                          className={`px-3 py-1.5 rounded text-xs font-bold ${
+                            themeMode === 'bright'
+                              ? 'bg-slate-200 text-slate-800 hover:bg-slate-300 border border-slate-300'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveEditEvidence(ev)}
+                          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-black shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Save Changes</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      key={ev.id}
+                      className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-start justify-between gap-3 transition-colors ${
+                        themeMode === 'bright'
+                          ? 'bg-white border-2 border-slate-300 shadow-sm hover:border-slate-400'
+                          : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-start space-x-3 flex-1 min-w-0">
+                        <div className={`p-2 rounded-lg border mt-0.5 shrink-0 ${
+                          themeMode === 'bright'
+                            ? 'bg-slate-100 border-slate-300'
+                            : 'bg-slate-800 border-slate-700'
+                        }`}>
+                          {getFileIcon(ev.fileType)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2 flex-wrap">
+                            <p className={`text-xs font-black font-mono ${themeMode === 'bright' ? 'text-slate-900' : 'text-slate-100'}`}>{ev.fileName}</p>
+                            <span className={`text-[10px] px-2 py-0.2 rounded font-bold ${
+                              themeMode === 'bright'
+                                ? 'bg-slate-200 text-slate-800'
+                                : 'bg-slate-800 text-slate-300'
+                            }`}>
+                              {ev.fileSize}
+                            </span>
+                          </div>
+                          <p className={`text-xs mt-0.5 font-semibold ${themeMode === 'bright' ? 'text-slate-700' : 'text-slate-400'}`}>{ev.description}</p>
+                          {ev.notes && (
+                            <div className={`mt-2 p-2 rounded-lg text-xs font-medium flex items-start gap-1.5 border ${
+                              themeMode === 'bright'
+                                ? 'bg-amber-50 border-amber-300 text-amber-950'
+                                : 'bg-slate-950/70 border-yellow-500/30 text-amber-200'
+                            }`}>
+                              <MessageSquare className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-500" />
+                              <div>
+                                <span className={`font-extrabold text-[11px] block ${themeMode === 'bright' ? 'text-amber-900' : 'text-amber-400'}`}>Notes / Comments:</span>
+                                <span className="leading-snug">{ev.notes}</span>
+                              </div>
+                            </div>
+                          )}
+                          <p className={`text-[10px] mt-1 font-bold ${themeMode === 'bright' ? 'text-amber-900' : 'text-yellow-400/80'}`}>
+                            Uploaded by: <strong>{ev.uploadedBy}</strong> ({ev.uploadedByRole}) • {ev.uploadedAt}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Image / File Preview & Action Buttons */}
+                      <div className="sm:self-center shrink-0 flex items-center space-x-2">
+                        {ev.url && (
+                          <>
+                            {ev.fileType === 'Image' && (
+                              <img
+                                src={ev.url}
+                                alt={ev.fileName}
+                                className="w-10 h-10 object-cover rounded-lg border border-yellow-500/50 cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => setPreviewModalUrl({ url: ev.url!, title: ev.fileName })}
+                              />
+                            )}
                             <button
                               type="button"
-                              onClick={() => {
-                                onDeleteEvidence(c.id, ev.id);
-                                setConfirmDeleteId(null);
-                              }}
-                              title="Confirm Deletion"
-                              className="px-2.5 py-1.5 rounded-lg text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center space-x-1"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Confirm Delete</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteId(null)}
-                              className={`px-2 py-1.5 rounded-lg text-xs font-bold ${
+                              onClick={() => setPreviewModalUrl({ url: ev.url!, title: ev.fileName })}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1 ${
                                 themeMode === 'bright'
-                                  ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                                  : 'bg-slate-800 text-yellow-400 border border-yellow-500/30 hover:bg-slate-700'
                               }`}
                             >
-                              Cancel
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>View Photo</span>
                             </button>
-                          </div>
-                        ) : (
+                          </>
+                        )}
+
+                        {c.status !== 'Solved' && (
                           <button
                             type="button"
-                            onClick={() => setConfirmDeleteId(ev.id)}
-                            title="Delete / Remove Evidence File"
-                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1 transition-colors ${
+                            onClick={() => handleStartEditEvidence(ev)}
+                            title="Edit Evidence / Notes"
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1 transition-colors cursor-pointer ${
                               themeMode === 'bright'
-                                ? 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'
-                                : 'bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25'
+                                ? 'bg-blue-100 text-blue-900 border border-blue-300 hover:bg-blue-200'
+                                : 'bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30'
                             }`}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Remove</span>
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit</span>
                           </button>
-                        )
-                      )}
+                        )}
+
+                        {c.status !== 'Solved' && onDeleteEvidence && (
+                          confirmDeleteId === ev.id ? (
+                            <div className="flex items-center space-x-1 animate-fadeIn">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onDeleteEvidence(c.id, ev.id);
+                                  setConfirmDeleteId(null);
+                                }}
+                                title="Confirm Deletion"
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center space-x-1"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Confirm Delete</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteId(null)}
+                                className={`px-2 py-1.5 rounded-lg text-xs font-bold ${
+                                  themeMode === 'bright'
+                                    ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                }`}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(ev.id)}
+                              title="Delete / Remove Evidence File"
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1 transition-colors ${
+                                themeMode === 'bright'
+                                  ? 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'
+                                  : 'bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25'
+                              }`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Remove</span>
+                            </button>
+                          )
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )
                 ))
               ) : (
                 <div className={`p-8 text-center text-xs font-bold border border-dashed rounded-xl ${

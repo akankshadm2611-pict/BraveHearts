@@ -239,6 +239,36 @@ export default function App() {
     setNotifications((prev) => [notif, ...prev]);
   };
 
+  // Update Evidence File in Case (Notes, Title, Description, Category, etc.)
+  const handleUpdateEvidence = (caseId: string, updatedEvidence: EvidenceFile) => {
+    setCases((prev) =>
+      prev.map((c) => {
+        if (c.id === caseId) {
+          const updatedEvidenceList = c.evidence.map((ev) =>
+            ev.id === updatedEvidence.id ? updatedEvidence : ev
+          );
+          const updatedCase = { ...c, evidence: updatedEvidenceList };
+          if (selectedCaseModal && selectedCaseModal.id === caseId) {
+            setSelectedCaseModal(updatedCase);
+          }
+          return updatedCase;
+        }
+        return c;
+      })
+    );
+
+    const notif: PortalNotification = {
+      id: `notif-${Date.now()}`,
+      title: 'Evidence File Updated',
+      message: `Evidence file "${updatedEvidence.fileName}" notes/details were updated in Case ${caseId}.`,
+      timestamp: 'Just now',
+      type: 'Evidence',
+      relatedCaseId: caseId,
+      read: false,
+    };
+    setNotifications((prev) => [notif, ...prev]);
+  };
+
   // Delete Evidence File from Case
   const handleDeleteEvidence = (caseId: string, evidenceId: string) => {
     setCases((prev) =>
@@ -503,6 +533,7 @@ export default function App() {
         onCreateSuspect={handleCreateSuspect}
         onUpdateSuspect={handleUpdateSuspect}
         onUploadEvidence={handleUploadEvidence}
+        onUpdateEvidence={handleUpdateEvidence}
         onDeleteEvidence={handleDeleteEvidence}
         onAddTimelineEntry={handleAddTimelineEntry}
         onUpdateTimelineEntry={handleUpdateTimelineEntry}

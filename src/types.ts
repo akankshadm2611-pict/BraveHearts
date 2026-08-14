@@ -54,6 +54,7 @@ export interface EvidenceFile {
   uploadedAt: string;
   fileSize: string;
   url?: string;
+  notes?: string;
 }
 
 export interface TimelineEntry {

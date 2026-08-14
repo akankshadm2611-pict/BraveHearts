@@ -80,6 +80,39 @@ export const SuspectBinaryTreeNetworkModal: React.FC<SuspectBinaryTreeNetworkMod
     return suspects.find((s) => s.id === id);
   };
 
+  // Helper to retrieve relationship between two connected suspects
+  const getRelationshipBetween = (parentId: string, childId: string): string => {
+    const parent = getSuspectById(parentId);
+    if (parent && parent.connectedSuspects) {
+      const conn = parent.connectedSuspects.find((c) => c.targetSuspectId === childId);
+      if (conn && conn.relationship) return conn.relationship;
+    }
+    const child = getSuspectById(childId);
+    if (child && child.connectedSuspects) {
+      const conn = child.connectedSuspects.find((c) => c.targetSuspectId === parentId);
+      if (conn && conn.relationship) return conn.relationship;
+    }
+    if (
+      (parentId === 'SUS-9013' && childId === 'SUS-9012') ||
+      (parentId === 'SUS-9012' && childId === 'SUS-9013')
+    ) {
+      return 'Technical Handler & Arms Supplier';
+    }
+    if (
+      (parentId === 'SUS-9012' && childId === 'SUS-9014') ||
+      (parentId === 'SUS-9014' && childId === 'SUS-9012')
+    ) {
+      return 'Harbor Narcotics Logistics Partner';
+    }
+    if (
+      (parentId === 'SUS-9013' && childId === 'SUS-9015') ||
+      (parentId === 'SUS-9015' && childId === 'SUS-9013')
+    ) {
+      return 'Financial & Laundering Link';
+    }
+    return 'Connected Associate';
+  };
+
   // Active root object
   const activeRoot = getSuspectById(activeRootId) || initialRootSuspect;
   const selectedSuspect = getSuspectById(selectedSuspectId) || activeRoot;
@@ -724,7 +757,7 @@ export const SuspectBinaryTreeNetworkModal: React.FC<SuspectBinaryTreeNetworkMod
                                 </div>
                               </div>
 
-                              <div className="mt-3 text-center">
+                              <div className="mt-3 text-center flex flex-col items-center">
                                 <div
                                   className={`text-xs font-black transition-colors ${
                                     isBright
@@ -740,6 +773,16 @@ export const SuspectBinaryTreeNetworkModal: React.FC<SuspectBinaryTreeNetworkMod
                                   }`}
                                 >
                                   {child.id}
+                                </div>
+                                <div
+                                  className={`text-[9px] font-extrabold px-2 py-0.5 mt-1 rounded-md border inline-block max-w-[170px] truncate shadow-xs ${
+                                    isBright
+                                      ? 'bg-sky-100/90 text-sky-950 border-sky-300'
+                                      : 'bg-yellow-500/15 text-yellow-300 border-yellow-500/40'
+                                  }`}
+                                  title={getRelationshipBetween(activeRoot.id, child.id)}
+                                >
+                                  {getRelationshipBetween(activeRoot.id, child.id)}
                                 </div>
                               </div>
                             </div>
@@ -868,6 +911,16 @@ export const SuspectBinaryTreeNetworkModal: React.FC<SuspectBinaryTreeNetworkMod
                                             }`}
                                           >
                                             {gChild.id}
+                                          </div>
+                                          <div
+                                            className={`text-[8.5px] font-bold px-1.5 py-0.5 mt-1 rounded-md border inline-block max-w-[140px] truncate ${
+                                              isBright
+                                                ? 'bg-sky-100/90 text-sky-950 border-sky-300'
+                                                : 'bg-yellow-500/15 text-yellow-300 border-yellow-500/40'
+                                            }`}
+                                            title={getRelationshipBetween(child.id, gChild.id)}
+                                          >
+                                            {getRelationshipBetween(child.id, gChild.id)}
                                           </div>
                                         </div>
                                       </div>

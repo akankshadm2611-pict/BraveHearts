@@ -1,43 +1,20 @@
-# BraveHearts
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
 
-## About
-We are team Brave hearts creator of Crime justice website.
-Crime Justice is a web-based project designed to help users manage and analyze crime investigation information through an interactive dashboard.
+# Run and deploy your AI Studio app
 
-## Features
-- Interactive crime map
-- Case management
-- Suspect information
-- Evidence management
-- Crime analysis
-- Interactive dashboard
+This contains everything you need to run your app locally.
 
-## Technologies Used
-- HTML
-- CSS/ Tailwind CSS
-- JavaScript/ Typescript
-- Leaflet + OpenstreetMap
-- Vite + React
-- Recharts
-- jsPDF + Express.js
+View your app in AI Studio: https://ai.studio/apps/f68d3e21-c1ae-44da-bbd9-f0f68d6e3bc4
 
-## How to Run
-1. Download or clone the repository.
-2. Open the project folder in VS Code.
-3. Open `index.html` in your browser.
+## Run Locally
 
-## Team
-- Unnati Gandhi
-- Akanksha Deshmukh
-- Anushri Mahajan
-
-## Future Scope
-- Emergency meeting notification from the higher authorities. 
-- Tracking the reopened case.
-- Real-time data integration.
+**Prerequisites:**  Node.js
 
 
 1. Install dependencies:
    `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
